@@ -1,4 +1,5 @@
 using FangKeDelivery.Data;
+using System.Threading;
 using FangKeDelivery.UI;
 
 namespace FangKeDelivery;
@@ -29,7 +30,7 @@ internal static class Program
             db.Initialize();
             var args = Environment.GetCommandLineArgs();
             // 必须在任何可能弹窗的逻辑之前设置，否则无人值守运行时会被模态框卡死
-            if (args.Any(a => a is "--dump-layout" or "--selftest" or "--uitest"))
+            if (args.Any(a => a is "--dump-layout" or "--selftest" or "--uitest" or "--shot"))
                 Msg.AutoAnswer = true;
 
             var repo = new Repository(db);
@@ -37,6 +38,13 @@ internal static class Program
 
             var auth = new Core.AuthService(repo);
             auth.EnsureDefaultAdmin();
+
+            var shotIndex = Array.FindIndex(args, a => a == "--shot");
+            if (shotIndex >= 0)
+            {
+                RunShots(repo, args, shotIndex);
+                return;
+            }
 
             var dumpIndex = Array.FindIndex(args, a => a == "--dump-layout");
             if (dumpIndex >= 0)
@@ -74,8 +82,50 @@ internal static class Program
         {
             Msg.Show(
                 "软件启动失败：\n\n" + ex.Message + "\n\n" + ex.StackTrace,
-                "方可送货单管理系统", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                "万方商贸管家", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+    }
+
+    /// <summary>
+    /// 截图模式：登录为管理员后逐页显示并抓屏。
+    /// 用 CopyFromScreen 而不是 DrawToBitmap —— Wine 下后者画不出内容。
+    /// </summary>
+    private static void RunShots(Repository repo, string[] args, int shotIndex)
+    {
+        var outDir = shotIndex + 1 < args.Length ? args[shotIndex + 1] : Path.Combine(AppContext.BaseDirectory, "shots");
+        Directory.CreateDirectory(outDir);
+
+        var pages = new[]
+        {
+            "note", "list", "stockin", "stock", "customer", "product", "audit", "report", "settings", "users"
+        };
+
+        var form = new MainForm(repo, TestLogin.AsAdmin(repo));
+        form.StartPosition = FormStartPosition.Manual;
+        form.Location = new Point(0, 0);
+        form.Show();
+        for (var i = 0; i < 6; i++) { Application.DoEvents(); Thread.Sleep(120); }
+
+        foreach (var page in pages)
+        {
+            form.ShowPage(page);
+            for (var i = 0; i < 8; i++) { Application.DoEvents(); Thread.Sleep(120); }
+
+            try
+            {
+                var bounds = form.Bounds;
+                using var bmp = new Bitmap(bounds.Width, bounds.Height);
+                using (var g = Graphics.FromImage(bmp))
+                    g.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
+                bmp.Save(Path.Combine(outDir, $"page-{page}.png"), System.Drawing.Imaging.ImageFormat.Png);
+            }
+            catch (Exception ex)
+            {
+                File.AppendAllText(Path.Combine(outDir, "errors.txt"), $"{page}: {ex.Message}\n");
+            }
+        }
+
+        form.Close();
     }
 
     private static void RunLayoutSelfTest(Repository repo, string[] args, int dumpIndex)
@@ -88,7 +138,10 @@ internal static class Program
         Application.DoEvents();
 
         var report = new System.Text.StringBuilder();
-        var pages = new[] { "note", "list", "customer", "product", "report", "settings", "users" };
+        var pages = new[]
+        {
+            "note", "list", "stockin", "stock", "customer", "product", "audit", "report", "settings", "users"
+        };
 
         foreach (var page in pages)
         {

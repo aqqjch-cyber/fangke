@@ -125,6 +125,10 @@ internal static class SelfTest
         failures += RunAuthChecks(repo, log);
 
         log.AppendLine();
+        log.AppendLine("---- 进销存与审核 ----");
+        failures += StockSelfTest.Run(repo, outDir, log);
+
+        log.AppendLine();
         log.AppendLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         var reportPath = Path.Combine(outDir, "selftest.txt");
         File.WriteAllText(reportPath, log.ToString(), System.Text.Encoding.UTF8);

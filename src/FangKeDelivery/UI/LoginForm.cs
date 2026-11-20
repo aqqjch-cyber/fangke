@@ -15,7 +15,7 @@ public sealed class LoginForm : Form
     {
         _auth = auth;
 
-        Text = "登录 — 方可送货单管理系统";
+        Text = "登录 — 万方商贸管家";
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
@@ -45,7 +45,7 @@ public sealed class LoginForm : Form
 
         var title = new Label
         {
-            Text = "方可送货单",
+            Text = "万方商贸管家",
             Font = Theme.Font(28f, FontStyle.Bold),
             ForeColor = Color.White,
             AutoSize = true,

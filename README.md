@@ -1,9 +1,9 @@
-# 方可送货单管理系统（单机版）
+# 万方商贸管家（单机版）
 
-Windows 桌面送货单软件，绿色免安装、单文件 EXE、本地 SQLite 存储、支持三联送货单打印。
+Windows 桌面进销存软件，绿色免安装、单文件 EXE、本地 SQLite 存储。送货单开单、三联打印、库存台账、审核流转。
 
 > **关于原软件**：您电脑 `D:\` 上的「方可送货单软件」我无法直接读取（那是本机磁盘，我运行在 Linux 环境里）。
-> 因此本软件是**按同类送货单软件的通用形态从零复刻**的：界面布局、开单流程、金额大写、三联打印、数据管理都按国内送货单软件的习惯做法实现。
+> 因此本软件是**按同类送货单软件的通用形态从零复刻**的：界面布局、开单流程、金额大写、三联打印、进销存与审核都按国内同类软件的习惯做法实现。
 > 如果您能提供原软件的具体截图或字段清单，我可以进一步对齐细节。
 
 ---
@@ -15,7 +15,7 @@ Windows 桌面送货单软件，绿色免安装、单文件 EXE、本地 SQLite 
 按 `Win + X` → 选 **Windows PowerShell**，粘贴这一整段回车：
 
 ```powershell
-$d='D:\fangke'; New-Item -ItemType Directory -Force $d | Out-Null; Invoke-WebRequest 'https://github.com/aqqjch-cyber/fangke/releases/download/v1.1.0/FangKeDelivery.exe' -OutFile "$d\FangKeDelivery.exe"; Start-Process "$d\FangKeDelivery.exe"
+$d='D:\fangke'; New-Item -ItemType Directory -Force $d | Out-Null; Invoke-WebRequest 'https://github.com/aqqjch-cyber/fangke/releases/latest/download/WanfangTrade.exe' -OutFile "$d\WanfangTrade.exe"; Start-Process "$d\WanfangTrade.exe"
 ```
 
 它会自动建好 `D:\fangke`、下载程序、并启动。
@@ -23,7 +23,7 @@ $d='D:\fangke'; New-Item -ItemType Directory -Force $d | Out-Null; Invoke-WebReq
 ### 方式二：手动下载
 
 1. 打开 [Releases 页面](https://github.com/aqqjch-cyber/fangke/releases/latest)
-2. 下载 `FangKeDelivery.exe`（约 67 MB）
+2. 下载 `WanfangTrade.exe`（约 67 MB）
 3. 在 `D:\` 下新建 `fangke` 文件夹，把 exe 放进去
 4. 双击运行
 
@@ -46,6 +46,9 @@ $d='D:\fangke'; New-Item -ItemType Directory -Force $d | Out-Null; Invoke-WebReq
 |------|------|
 | 开单 / 送货单 | 选客户自动带出电话地址；录商品自动带出规格单位单价；数量×单价自动算金额；合计自动转中文大写 |
 | 单据列表 | 按日期区间 / 关键字 / 状态筛选；双击打开编辑；补打、复制新单、批量标记已送货/已结算、删除 |
+| 库存管理 | 库存现存量与流水台账；低于安全库存标红；盘点调整、设置安全库存 |
+| 入库单 | 采购入库开单，明细同送货单；审核通过才加库存 |
+| 审核中心 | 送货单/入库单待审列表；通过、驳回、反审核；全部审核留痕可查 |
 | 客户资料 | 增删改查，开单下拉框直接引用 |
 | 商品资料 | 增删改查，含规格、单位、参考单价 |
 | 统计报表 | 按客户汇总（含占比）、按商品汇总、按月汇总；4 项 KPI 卡片；本月/上月/本年快捷区间 |
@@ -60,6 +63,10 @@ $d='D:\fangke'; New-Item -ItemType Directory -Force $d | Out-Null; Invoke-WebReq
 - **金额大写**：严格按财务规范，含「零」的处理（如 `10.05` → `壹拾元零伍分`、`1005` → `壹仟零伍元整`）
 - **空行处理**：未填商品名称的行不计入合计、不写入数据库
 - **单据状态**：未送货 → 已送货 → 已结算
+- **审核流转**：待审核 → 已审核 / 已驳回。送货单审核通过才扣减库存，入库单审核通过才增加库存；反审核自动冲回库存
+- **已审核单据锁定**：送货单审核通过后不可再编辑，需先反审核
+- **库存口径**：现存 = 期初 + 入库 − 出库 ± 盘点。每条流水都记录变动前后数量，可追溯到具体单号
+- **升级建账**：旧版本数据库升级时，历史已审核送货单会自动补一条期初流水，避免库存从 0 开始算
 - **单据字段**：客户、联系人、电话、地址、送货日期、送货方式、运货人、运货车号、结算方式、送货员、收货人、备注
 - **打印版式**：默认按预印单（241-1）位置排版（内容靠左、右侧留白）；换普通空白纸可在系统设置里关掉，让表格铺满
 - **权限**：管理员可做全部操作（含系统设置、用户管理、备份恢复）；员工仅能开单、查单、管客户商品、看报表
@@ -79,7 +86,7 @@ $d='D:\fangke'; New-Item -ItemType Directory -Force $d | Out-Null; Invoke-WebReq
 ```
 fangke/
 ├── dist/
-│   └── FangKeDelivery.exe      # 可直接运行的成品（单文件，自包含）
+│   └── WanfangTrade.exe        # 可直接运行的成品（单文件，自包含）
 ├── src/FangKeDelivery/
 │   ├── Program.cs              # 入口 + 示例数据初始化
 │   ├── MainForm.cs             # 主窗体：菜单、侧边导航、状态栏、备份恢复
@@ -110,7 +117,7 @@ fangke/
 
 需要 [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)。
 
-**Windows**：双击 `build.bat`，产物在 `dist\FangKeDelivery.exe`。
+**Windows**：双击 `build.bat`，产物在 `dist\WanfangTrade.exe`。
 
 **命令行**：
 
@@ -128,13 +135,16 @@ dotnet publish src/FangKeDelivery/FangKeDelivery.csproj \
 
 ```bash
 # 金额大写 / 数据存取 / 打印渲染 / 账号密码与权限
-FangKeDelivery.exe --selftest <输出目录>
+WanfangTrade.exe --selftest <输出目录>
 
 # 真实控件走一遍开单流程 + 登录窗口 + 角色导航（录入→联动→保存→查询）
-FangKeDelivery.exe --uitest <输出目录>
+WanfangTrade.exe --uitest <输出目录>
 
-# 七个页面的布局缺陷检查（零尺寸、越界、文字裁剪）
-FangKeDelivery.exe --dump-layout <输出目录>
+# 十个页面的布局缺陷检查（零尺寸、越界、文字裁剪）
+WanfangTrade.exe --dump-layout <输出目录>
+
+# 逐页真实抓屏（需要可见桌面；无桌面环境用 xvfb-run）
+WanfangTrade.exe --shot <输出目录>
 ```
 
 当前回归结果：自检 **54 项全部通过**、UI 流程 **37 项全部通过**、七个页面布局 **0 缺陷**。

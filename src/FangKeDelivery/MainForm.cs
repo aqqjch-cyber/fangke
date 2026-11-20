@@ -26,7 +26,7 @@ public sealed class MainForm : Form
         _repo = repo;
         _auth = auth;
 
-        Text = "方可送货单管理系统 — 单机版";
+        Text = "万方商贸管家 — 单机版";
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(1180, 720);
         Size = new Size(1320, 820);
@@ -147,6 +147,13 @@ public sealed class MainForm : Form
         var docs = new ToolStripMenuItem("单据管理(&D)");
         docs.DropDownItems.Add(Item("送货单列表(&L)", Keys.None, () => ShowPage("list")));
         docs.DropDownItems.Add(Item("单据查询(&Q)", Keys.None, () => ShowPage("list")));
+        if (_auth.IsAdmin)
+            docs.DropDownItems.Add(Item("审核中心(&A)", Keys.None, () => ShowPage("audit")));
+
+        var stockMenu = new ToolStripMenuItem("进销存(&S)");
+        stockMenu.DropDownItems.Add(Item("入库单(&I)", Keys.None, () => ShowPage("stockin")));
+        stockMenu.DropDownItems.Add(Item("库存管理(&K)", Keys.None, () => ShowPage("stock")));
+        stockMenu.DropDownItems.Add(Item("库存流水(&M)", Keys.None, () => ShowPage("stock")));
 
         var report = new ToolStripMenuItem("统计报表(&R)");
         report.DropDownItems.Add(Item("销售统计(&S)", Keys.None, () => ShowPage("report")));
@@ -167,7 +174,7 @@ public sealed class MainForm : Form
         help.DropDownItems.Add(Item("使用说明(&U)", Keys.F1, ShowHelp));
         help.DropDownItems.Add(Item("关于(&A)", Keys.None, ShowAbout));
 
-        menu.Items.AddRange(new ToolStripItem[] { file, basic, docs, report, tool, help });
+        menu.Items.AddRange(new ToolStripItem[] { file, basic, docs, stockMenu, report, tool, help });
         return menu;
     }
 
@@ -200,7 +207,7 @@ public sealed class MainForm : Form
 
         title = new Label
         {
-            Text = "方可送货单管理系统",
+            Text = "万方商贸管家",
             ForeColor = Color.White,
             Font = Theme.Font(14f, FontStyle.Bold),
             AutoSize = true,
@@ -218,7 +225,7 @@ public sealed class MainForm : Form
 
         var version = new Label
         {
-            Text = "v1.1",
+            Text = "v1.3",
             ForeColor = Color.FromArgb(170, 200, 240),
             Font = Theme.Font(8.5f),
             AutoSize = true,
@@ -253,10 +260,13 @@ public sealed class MainForm : Form
         {
             ("note", "开单 / 送货单", "✎"),
             ("list", "单据列表", "☰"),
+            ("stockin", "入库单", "📥"),
+            ("stock", "库存管理", "📦"),
             ("customer", "客户资料", "👥"),
-            ("product", "商品资料", "📦"),
+            ("product", "商品资料", "🏷"),
             ("report", "统计报表", "📊")
         };
+        if (_auth.IsAdmin) items.Add(("audit", "审核中心", "✔"));
         if (_auth.IsAdmin) items.Add(("settings", "系统设置", "⚙"));
         if (_auth.IsAdmin) items.Add(("users", "用户管理", "🔑"));
 
@@ -365,10 +375,13 @@ public sealed class MainForm : Form
             "list" => "单据列表",
             "customer" => "客户资料",
             "product" => "商品资料",
+            "stockin" => "入库单",
+            "stock" => "库存管理",
+            "audit" => "审核中心",
             "report" => "统计报表",
             "settings" => "系统设置",
             "users" => "用户管理",
-            _ => "方可送货单管理系统"
+            _ => "万方商贸管家"
         };
         _crumbLabel.Text = "单机版 · 本地数据存储";
         RefreshStatus();
@@ -396,6 +409,9 @@ public sealed class MainForm : Form
         "list" => new NoteListPage(_repo, this),
         "customer" => new CustomerPage(_repo),
         "product" => new ProductPage(_repo),
+        "stockin" => new StockInPage(_repo, this),
+        "stock" => new StockPage(_repo, this),
+        "audit" => new AuditPage(_repo, this),
         "report" => new ReportPage(_repo),
         "settings" => new SettingsPage(_repo),
         "users" => new UserPage(_repo, _auth),
@@ -419,7 +435,12 @@ public sealed class MainForm : Form
             var today = DateTime.Today;
             var (total, count) = _repo.Summary(new DateTime(today.Year, today.Month, 1), today);
             _statusLeft.Text = $"今日 {today:yyyy-MM-dd}    本月单据 {count} 张 · 金额 {total:N2} 元";
-            _statusRight.Text = $"客户 {_repo.Count("Customer")} 家 · 商品 {_repo.Count("Product")} 种 · 数据库 {AppPaths.DatabasePath}";
+            var pending = _auth.IsAdmin
+                ? _repo.QueryNotesByApproval(Core.ApproveStatus.待审核).Count
+                : 0;
+            var pendingText = pending > 0 ? $" · ⚠ {pending} 张单据待审核" : "";
+            _statusRight.Text = $"客户 {_repo.Count("Customer")} 家 · 商品 {_repo.Count("Product")} 种" +
+                                $"{pendingText} · 数据库 {AppPaths.DatabasePath}";
         }
         catch
         {
@@ -428,6 +449,17 @@ public sealed class MainForm : Form
     }
 
     public void SetStatus(string text) => _statusLeft.Text = text;
+
+    /// <summary>当前操作人，用于库存流水与审核记录留痕。</summary>
+    public string CurrentUserName
+    {
+        get
+        {
+            var u = _auth.Current;
+            if (u is null) return "系统";
+            return string.IsNullOrWhiteSpace(u.DisplayName) ? u.UserName : u.DisplayName;
+        }
+    }
 
     private void BackupData()
     {
@@ -480,7 +512,7 @@ public sealed class MainForm : Form
             }
             Msg.Show(this, "恢复成功，请重新打开软件以加载数据。", "恢复数据",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
-            InvalidatePages("note", "list", "customer", "product", "report");
+            InvalidatePages("note", "list", "customer", "product", "report", "stock", "stockin", "audit");
         }
         catch (Exception ex)
         {
@@ -518,7 +550,7 @@ public sealed class MainForm : Form
     private void ShowAbout()
     {
         Msg.Show(this,
-            "方可送货单管理系统（单机版）\n版本 1.0.0\n\n" +
+            "万方商贸管家（单机版）\n版本 1.3.0\n\n" +
             "本地数据存储 · 无需联网 · 支持三联送货单打印\n\n" +
             "数据目录：" + AppPaths.DataDirectory,
             "关于", MessageBoxButtons.OK, MessageBoxIcon.Information);
