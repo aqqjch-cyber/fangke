@@ -56,7 +56,10 @@ public static class LayoutDump
             problems.Add($"ZERO_SIZE {c.GetType().Name} \"{Trim(c.Text)}\" {c.Width}x{c.Height}");
         }
 
-        if (c.Parent is not null && c.Parent is not Form)
+        // AutoScroll 容器内的内容本来就允许超出可视区，靠滚动条访问，不算缺陷
+        var scrollable = c.Parent is ScrollableControl { AutoScroll: true };
+
+        if (c.Parent is not null && c.Parent is not Form && !scrollable)
         {
             var p = c.Parent.ClientRectangle;
             if (c.Left < -2 || c.Top < -2 || c.Right > p.Right + 2 || c.Bottom > p.Bottom + 2)
@@ -69,8 +72,35 @@ public static class LayoutDump
         if (c is Label lbl && lbl.AutoSize == false && lbl.Height < 8)
             problems.Add($"LABEL_SQUASHED \"{Trim(lbl.Text)}\" h={lbl.Height}");
 
+        // 同级控件重叠：绝对定位的窗口里最容易出错的地方，靠肉眼很难发现
+        if (c.Parent is not null)
+            CheckSiblingOverlap(c, problems);
+
         foreach (Control child in c.Controls)
             Check(child, root, problems, depth + 1);
+    }
+
+    private static void CheckSiblingOverlap(Control c, List<string> problems)
+    {
+        if (c.Parent is not { } parent) return;
+        if (c.Dock != DockStyle.None || c.Anchor != (AnchorStyles.Top | AnchorStyles.Left)) return;
+        if (c is Label { AutoSize: true } or Panel || c.Width <= 0 || c.Height <= 0) return;
+
+        foreach (Control other in parent.Controls)
+        {
+            if (ReferenceEquals(other, c) || !other.Visible) continue;
+            if (other.Dock != DockStyle.None || other.Width <= 0 || other.Height <= 0) continue;
+
+            var a = c.Bounds;
+            var b = other.Bounds;
+            var inter = Rectangle.Intersect(a, b);
+            if (inter.Width > 0 && inter.Height > 0)
+            {
+                problems.Add($"OVERLAP {c.GetType().Name} \"{Trim(c.Text)}\" rect=({a.Left},{a.Top},{a.Right},{a.Bottom}) " +
+                             $"与 {other.GetType().Name} \"{Trim(other.Text)}\" rect=({b.Left},{b.Top},{b.Right},{b.Bottom}) " +
+                             $"重叠 {inter.Width}x{inter.Height}");
+            }
+        }
     }
 
     private static string Trim(string? s)

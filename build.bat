@@ -3,7 +3,7 @@ chcp 65001 >nul
 setlocal
 
 echo ============================================
-echo   方可送货单管理系统 - 打包脚本
+echo   万方商贸管家 - 打包脚本
 echo ============================================
 echo.
 
@@ -32,9 +32,9 @@ echo.
 echo [3/3] 完成！
 echo.
 echo 可执行文件位置:
-echo   %~dp0dist\FangKeDelivery.exe
+echo   %~dp0dist\WanfangTrade.exe
 echo.
-echo 直接把 FangKeDelivery.exe 复制到任意 Windows 电脑即可运行，
+echo 直接把 WanfangTrade.exe 复制到任意 Windows 电脑即可运行，
 echo 首次运行会在同目录自动创建 data 文件夹保存数据。
 echo.
 pause

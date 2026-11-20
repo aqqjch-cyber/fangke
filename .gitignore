@@ -11,6 +11,10 @@ uitest/
 dist/*.exe
 dist/out/
 out/
-dist/lay/
+
+# 布局/自检/截图等测试输出目录（--dump-layout/--shot 可任意命名）
+dist/lay*/
+dist/shots/
+dist/selftest/
 dist/uitest/
 dist/data/

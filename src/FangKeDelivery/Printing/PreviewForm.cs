@@ -54,7 +54,7 @@ public sealed class PreviewForm : Form
             BackColor = Color.White
         };
 
-        _canvas = new Panel { BackColor = Theme.PageBack, AutoScroll = true };
+        _canvas = new Panel { Dock = DockStyle.Fill, BackColor = Theme.PageBack, AutoScroll = true };
         _canvas.Controls.Add(_picture);
 
         _viewport = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(228, 232, 238), Padding = new Padding(24) };
@@ -75,7 +75,7 @@ public sealed class PreviewForm : Form
 
     private Control BuildToolbar()
     {
-        var bar = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Color.White, Padding = new Padding(12, 11, 12, 11) };
+        var bar = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Color.White, Padding = new Padding(12, 8, 12, 8) };
 
         var print = Theme.PrimaryButton("直接打印", 100, 34);
         print.Click += (_, _) => DoPrint();
@@ -108,7 +108,9 @@ public sealed class PreviewForm : Form
             AutoSize = true,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
-            BackColor = Color.White
+            BackColor = Color.White,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty
         };
         rightFlow.Controls.AddRange(new Control[] { close, print });
 
@@ -118,8 +120,13 @@ public sealed class PreviewForm : Form
             AutoSize = true,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
-            BackColor = Color.White
+            BackColor = Color.White,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty
         };
+        foreach (var b in new[] { prev, next, zoomOut, zoomIn, fit, actual, close, print })
+            b.Margin = new Padding(0, 0, 6, 0);
+
         leftFlow.Controls.AddRange(new Control[] { prev, next, _pageInfo, zoomOut, zoomIn, fit, actual });
 
         var hint = new Label
@@ -147,7 +154,7 @@ public sealed class PreviewForm : Form
     /// <summary>底部缩略图，点一下跳转——三联一眼看清。</summary>
     private Control BuildThumbBar()
     {
-        var strip = new Panel { Dock = DockStyle.Bottom, Height = 92, BackColor = Color.White, Padding = new Padding(12, 8, 12, 8) };
+        var strip = new Panel { Dock = DockStyle.Bottom, Height = 104, BackColor = Color.White, Padding = new Padding(12, 8, 12, 8) };
         var flow = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -183,11 +190,11 @@ public sealed class PreviewForm : Form
                 ForeColor = Theme.TextSub
             };
 
-            var cell = new Panel { Size = new Size(122, 76), BackColor = Color.White, Margin = new Padding(0, 0, 8, 0) };
+            var cell = new Panel { Size = new Size(122, 88), BackColor = Color.White, Margin = new Padding(0, 0, 8, 0) };
             cell.Controls.Add(box);
             cell.Controls.Add(cap);
             box.Top = 0;
-            cap.Top = 70;
+            cap.Top = 69;
             flow.Controls.Add(cell);
             _pageLabels.Add(cap);
         }

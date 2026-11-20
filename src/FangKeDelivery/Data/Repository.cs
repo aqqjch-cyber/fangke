@@ -4,7 +4,7 @@ using FangKeDelivery.Core;
 
 namespace FangKeDelivery.Data;
 
-public sealed class Repository
+public sealed partial class Repository
 {
     private readonly Db _db;
     public Repository(Db db) => _db = db;
@@ -353,7 +353,7 @@ public sealed class Repository
         var sql = "SELECT n.Id,n.NoteNo,n.CustomerId,n.CustomerName,n.CustomerPhone,n.CustomerAddress,n.NoteDate," +
                   "n.TotalAmount,n.Remark,n.Salesman,n.Receiver,n.Maker,n.Status,n.CreatedAt,n.UpdatedAt," +
                   "(SELECT IFNULL(SUM(i.Qty),0) FROM NoteItem i WHERE i.NoteId=n.Id) AS TotalQty," +
-                  NoteExtraColumns + " " +
+                  NoteExtraColumns + "," + NoteApproveColumns + " " +
                   "FROM DeliveryNote n ";
         if (where.Count > 0)
             sql += "WHERE " + string.Join(" AND ", where) + " ";
@@ -364,6 +364,9 @@ public sealed class Repository
 
     private const string NoteExtraColumns =
         "n.Contact,n.DeliveryMethod,n.Transporter,n.VehicleNo,n.SettleMethod";
+
+    private const string NoteApproveColumns =
+        "n.ApproveStatus,n.Approver,n.ApproveAt,n.ApproveRemark";
 
     private static List<DeliveryNote> QueryNotes(SqliteConnection conn, string? whereClause,
         Dictionary<string, object?> ps, string? fullSql = null)
@@ -379,7 +382,7 @@ public sealed class Repository
                 "SELECT n.Id,n.NoteNo,n.CustomerId,n.CustomerName,n.CustomerPhone,n.CustomerAddress,n.NoteDate," +
                 "n.TotalAmount,n.Remark,n.Salesman,n.Receiver,n.Maker,n.Status,n.CreatedAt,n.UpdatedAt," +
                 "(SELECT IFNULL(SUM(i.Qty),0) FROM NoteItem i WHERE i.NoteId=n.Id) AS TotalQty," +
-                NoteExtraColumns + " " +
+                NoteExtraColumns + "," + NoteApproveColumns + " " +
                 "FROM DeliveryNote n " + (whereClause ?? "") + " ORDER BY n.NoteDate DESC, n.Id DESC";
         }
         foreach (var kv in ps)
@@ -411,7 +414,11 @@ public sealed class Repository
                 DeliveryMethod = r.FieldCount > 17 ? r.GetString(17) : "",
                 Transporter = r.FieldCount > 18 ? r.GetString(18) : "",
                 VehicleNo = r.FieldCount > 19 ? r.GetString(19) : "",
-                SettleMethod = r.FieldCount > 20 ? r.GetString(20) : ""
+                SettleMethod = r.FieldCount > 20 ? r.GetString(20) : "",
+                ApproveStatus = r.FieldCount > 21 ? (ApproveStatus)r.GetInt32(21) : ApproveStatus.待审核,
+                Approver = r.FieldCount > 22 ? r.GetString(22) : "",
+                ApproveAt = r.FieldCount > 23 ? r.GetString(23) : "",
+                ApproveRemark = r.FieldCount > 24 ? r.GetString(24) : ""
             });
         }
         return list;
