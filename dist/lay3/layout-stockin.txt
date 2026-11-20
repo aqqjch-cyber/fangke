@@ -1,0 +1,51 @@
+﻿# Form MainForm ClientSize=1284x786
+MainForm "万方商贸管家 — 单机版" loc=0,102 size=1292x820 dock=None anchor=Top, Left vis=True
+  Panel "" loc=190,90 size=1094x674 dock=Fill anchor=Top, Left vis=True
+    StockInPage "" loc=16,12 size=1062x654 dock=Fill anchor=Top, Left vis=True
+      TableLayoutPanel "" loc=0,0 size=1062x654 dock=Fill anchor=Top, Left vis=True rows=3 rowStyles=[Absolute:62,Percent:100,Absolute:46] rowHeights=[62,546,46] cols=1 colStyles=0 colWidths=[1062]
+        RoundedPanel "" loc=0,0 size=1062x52 dock=Fill anchor=Top, Left vis=True
+          FlowLayoutPanel "" loc=14,10 size=1034x32 dock=Fill anchor=Top, Left vis=True
+            Label "关键字" loc=0,3 size=56x30 dock=None anchor=Top, Left vis=True
+            TextBox "" loc=60,3 size=180x23 dock=None anchor=Top, Left vis=True
+            Label "日期" loc=250,3 size=40x30 dock=None anchor=Top, Left vis=True
+            DateTimePicker "2026-11-01" loc=294,3 size=116x23 dock=None anchor=Top, Left vis=True
+            Label "至" loc=420,3 size=20x30 dock=None anchor=Top, Left vis=True
+            DateTimePicker "2026-11-20" loc=444,3 size=116x23 dock=None anchor=Top, Left vis=True
+            Label "状态" loc=570,3 size=40x30 dock=None anchor=Top, Left vis=True
+            ComboBox "全部状态" loc=614,3 size=100x24 dock=None anchor=Top, Left vis=True
+            Button "查询" loc=730,3 size=76x30 dock=None anchor=Top, Left vis=True
+            Button "重置" loc=814,3 size=68x30 dock=None anchor=Top, Left vis=True
+        RoundedPanel "" loc=0,62 size=1062x536 dock=Fill anchor=Top, Left vis=True
+          DataGridView "" loc=12,52 size=1038x474 dock=Fill anchor=Top, Left vis=True cols=8 rows=0 visibleCols=8
+            HScrollBar "" loc=0,133 size=80x17 dock=None anchor=Top, Left vis=False
+            VScrollBar "" loc=223,0 size=17x80 dock=None anchor=Top, Left vis=False
+          Panel "" loc=12,10 size=1038x42 dock=Top anchor=Top, Left vis=True
+            Label "入库单" loc=2,11 size=53x18 dock=None anchor=Top, Left vis=True
+            FlowLayoutPanel "" loc=738,0 size=300x42 dock=Right anchor=Top, Left vis=True
+              Button "+ 新建入库单" loc=177,9 size=120x30 dock=None anchor=Top, Left vis=True
+              Button "编辑" loc=101,9 size=70x30 dock=None anchor=Top, Left vis=True
+              Button "删除" loc=25,9 size=70x30 dock=None anchor=Top, Left vis=True
+        RoundedPanel "" loc=0,608 size=1062x46 dock=Fill anchor=Top, Left vis=True
+          Label "共 0 张入库单 · 合计金额 0.00 元" loc=16,8 size=1030x30 dock=Fill anchor=Top, Left vis=True
+  Panel "" loc=0,90 size=190x674 dock=Left anchor=Top, Left vis=True
+    Button "  ✎   开单 / 送货单" loc=10,14 size=170x42 dock=None anchor=Top, Left, Right vis=True
+    Button "  ☰   单据列表" loc=10,62 size=170x42 dock=None anchor=Top, Left, Right vis=True
+    Button "  📥   入库单" loc=10,110 size=170x42 dock=None anchor=Top, Left, Right vis=True
+    Button "  📦   库存管理" loc=10,158 size=170x42 dock=None anchor=Top, Left, Right vis=True
+    Button "  👥   客户资料" loc=10,206 size=170x42 dock=None anchor=Top, Left, Right vis=True
+    Button "  🏷   商品资料" loc=10,254 size=170x42 dock=None anchor=Top, Left, Right vis=True
+    Button "  📊   统计报表" loc=10,302 size=170x42 dock=None anchor=Top, Left, Right vis=True
+    Button "  ✔   审核中心" loc=10,350 size=170x42 dock=None anchor=Top, Left, Right vis=True
+    Button "  ⚙   系统设置" loc=10,398 size=170x42 dock=None anchor=Top, Left, Right vis=True
+    Button "  🔑   用户管理" loc=10,446 size=170x42 dock=None anchor=Top, Left, Right vis=True
+    Panel "" loc=12,500 size=166x1 dock=None anchor=Top, Left vis=True
+    Label "提示：Ctrl+N 快速开单 数据保存在本机 data 目录" loc=14,514 size=162x36 dock=None anchor=Top, Left vis=True
+    Button "  🔓   切换账号" loc=10,556 size=170x38 dock=None anchor=Top, Left, Right vis=True
+  Panel "" loc=0,28 size=1284x62 dock=Top anchor=Top, Left vis=True
+    Panel "" loc=20,14 size=34x34 dock=None anchor=Top, Left vis=True
+    Label "入库单" loc=64,10 size=67x23 dock=None anchor=Top, Left vis=True
+    Label "单机版 · 本地数据存储" loc=66,36 size=127x14 dock=None anchor=Top, Left vis=True
+    Label "系统管理员（管理员）" loc=1067,21 size=127x14 dock=None anchor=Top, Right vis=True
+    Label "v1.3" loc=1232,22 size=30x14 dock=None anchor=Top, Right vis=True
+  MenuStrip "" loc=0,0 size=1284x28 dock=Top anchor=Top, Left vis=True
+  StatusStrip "" loc=0,764 size=1284x22 dock=Bottom anchor=Top, Left vis=True

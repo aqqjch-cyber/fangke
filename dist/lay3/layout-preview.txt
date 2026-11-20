@@ -1,0 +1,28 @@
+﻿# Form PreviewForm ClientSize=1112x826
+PreviewForm "打印预览 — 送货单 SD202611200002" loc=0,0 size=1120x860 dock=None anchor=Top, Left vis=True
+  Panel "" loc=0,56 size=1112x666 dock=Fill anchor=Top, Left vis=True
+    Panel "" loc=24,24 size=1064x618 dock=Fill anchor=Top, Left vis=True
+      PictureBox "" loc=24,24 size=950x550 dock=None anchor=Top, Left vis=True
+  Panel "" loc=0,722 size=1112x104 dock=Bottom anchor=Top, Left vis=True
+    FlowLayoutPanel "" loc=12,8 size=1088x88 dock=Fill anchor=Top, Left vis=True
+      Panel "" loc=0,0 size=122x88 dock=None anchor=Top, Left vis=True
+        PictureBox "" loc=0,0 size=120x68 dock=None anchor=Top, Left vis=True
+        Label "第 1 页" loc=0,69 size=120x16 dock=None anchor=Top, Left vis=True
+      Panel "" loc=130,0 size=122x88 dock=None anchor=Top, Left vis=True
+        PictureBox "" loc=0,0 size=120x68 dock=None anchor=Top, Left vis=True
+        Label "第 2 页" loc=0,69 size=120x16 dock=None anchor=Top, Left vis=True
+      Panel "" loc=260,0 size=122x88 dock=None anchor=Top, Left vis=True
+        PictureBox "" loc=0,0 size=120x68 dock=None anchor=Top, Left vis=True
+        Label "第 3 页" loc=0,69 size=120x16 dock=None anchor=Top, Left vis=True
+  Panel "" loc=0,0 size=1112x56 dock=Top anchor=Top, Left vis=True
+    FlowLayoutPanel "" loc=12,8 size=524x40 dock=Left anchor=Top, Left vis=True
+      Button "上一页" loc=0,0 size=76x34 dock=None anchor=Top, Left vis=True
+      Button "下一页" loc=82,0 size=76x34 dock=None anchor=Top, Left vis=True
+      Button "缩小 −" loc=164,0 size=80x34 dock=None anchor=Top, Left vis=True
+      Button "放大 +" loc=250,0 size=80x34 dock=None anchor=Top, Left vis=True
+      Button "适应窗口" loc=336,0 size=88x34 dock=None anchor=Top, Left vis=True
+      Button "实际大小" loc=430,0 size=88x34 dock=None anchor=Top, Left vis=True
+    Label "三联：存根联 / 客户联 / 回单联" loc=721,8 size=191x24 dock=Right anchor=Top, Left vis=True
+    FlowLayoutPanel "" loc=912,8 size=188x40 dock=Right anchor=Top, Left vis=True
+      Button "关闭" loc=0,0 size=76x34 dock=None anchor=Top, Left vis=True
+      Button "直接打印" loc=82,0 size=100x34 dock=None anchor=Top, Left vis=True

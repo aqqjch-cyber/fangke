@@ -156,7 +156,13 @@ internal static class Program
 
         // 打印预览窗口：检查主图是否完整落在可视区内
         var anyNote = repo.QueryNotes().FirstOrDefault();
-        if (anyNote is not null)
+        var previewChecked = anyNote is not null;
+        if (anyNote is null)
+        {
+            // 静默跳过会让报告少一行却仍显示全绿，这里必须显式标出来
+            report.AppendLine("=== preview === SKIPPED (库中无送货单，先运行 --demo 生成演示数据)");
+        }
+        else
         {
             using var pv = new Printing.PreviewForm(repo.GetNote(anyNote.Id)!, repo);
             pv.Show();
@@ -202,6 +208,12 @@ internal static class Program
                 report.AppendLine("  SCREENSHOT_FAILED " + ex.Message);
             }
         }
+
+        // 汇总行：窗口数量与跳过项一目了然，避免少查了却仍显示全绿
+        var skipped = previewChecked ? 0 : 1;
+        report.AppendLine();
+        report.AppendLine($"=== 汇总 === 已检查 {12 - skipped} 个窗口，跳过 {skipped} 个"
+            + (skipped > 0 ? "（preview：库中无单据）" : ""));
 
         File.WriteAllText(Path.Combine(outDir, "report.txt"), report.ToString(), System.Text.Encoding.UTF8);
         form.Close();
