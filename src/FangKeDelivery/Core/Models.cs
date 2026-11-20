@@ -57,6 +57,21 @@ public sealed class DeliveryNote
     public string CustomerName { get; set; } = "";
     public string CustomerPhone { get; set; } = "";
     public string CustomerAddress { get; set; } = "";
+
+    /// <summary>客户联系人（参考单上「联系人」栏）。</summary>
+    public string Contact { get; set; } = "";
+
+    /// <summary>送货方式，如「送货上门」「物流代运」。</summary>
+    public string DeliveryMethod { get; set; } = "";
+
+    /// <summary>运货人 / 司机。</summary>
+    public string Transporter { get; set; } = "";
+
+    /// <summary>运货车号。</summary>
+    public string VehicleNo { get; set; } = "";
+
+    /// <summary>结算方式，如「现金」「月结」。</summary>
+    public string SettleMethod { get; set; } = "";
     public DateTime NoteDate { get; set; } = DateTime.Today;
     public decimal TotalAmount { get; set; }
     public string Remark { get; set; } = "";

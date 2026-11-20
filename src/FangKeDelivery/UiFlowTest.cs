@@ -174,7 +174,7 @@ internal static class UiFlowTest
 
         form.Close();
 
-        failures += RunAuthUiChecks(repo, log);
+        failures += RunAuthUiChecks(repo, outDir, log);
 
         log.AppendLine();
         log.AppendLine(failures == 0 ? "ALL UI FLOW CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
@@ -184,7 +184,7 @@ internal static class UiFlowTest
     }
 
     /// <summary>登录窗口与角色权限的界面级校验。</summary>
-    private static int RunAuthUiChecks(Repository repo, System.Text.StringBuilder log)
+    private static int RunAuthUiChecks(Repository repo, string outDir, System.Text.StringBuilder log)
     {
         var failures = 0;
         void Check(string name, bool ok, string detail = "")
@@ -202,14 +202,25 @@ internal static class UiFlowTest
             login.Show();
             Application.DoEvents();
 
-            var boxes = FindDescendants<TextBox>(login).ToList();
-            Check("登录窗口有用户名/密码框", boxes.Count >= 2, $"{boxes.Count} 个输入框");
+            // 用户名是下拉选择，密码是文本框：不用每次手打账号
+            var userCombo = FindDescendant<ComboBox>(login);
+            Check("登录窗口用户名是下拉框", userCombo is not null, "");
+            var userNames = userCombo?.Items.Cast<object>()
+                .Select(o => o.ToString()).ToList() ?? new List<string?>();
+            Check("用户名下拉列出 admin", userNames.Contains("admin"),
+                string.Join(",", userNames));
+            Check("用户名下拉列出 staff", userNames.Contains("staff"),
+                string.Join(",", userNames));
+
+            var passBox = FindDescendants<TextBox>(login)
+                .FirstOrDefault(t => t.UseSystemPasswordChar);
+            Check("登录窗口有密码框", passBox is not null, "");
             Check("登录窗口有登录按钮",
                 FindDescendants<Button>(login).Any(b => b.Text.Contains("登")), "");
 
             // 错误密码应留在窗口内并提示，而不是放行
-            boxes[0].Text = "admin";
-            boxes[1].Text = "definitely_wrong";
+            userCombo!.Text = "admin";
+            passBox!.Text = "definitely_wrong";
             var loginBtn = FindDescendants<Button>(login).First(b => b.Text.Contains("登"));
             loginBtn.PerformClick();
             Application.DoEvents();
@@ -217,11 +228,12 @@ internal static class UiFlowTest
                 login.DialogResult.ToString());
 
             // 正确密码应放行
-            boxes[1].Text = Core.AuthService.DefaultAdminPassword;
+            passBox.Text = Core.AuthService.DefaultAdminPassword;
             loginBtn.PerformClick();
             Application.DoEvents();
             Check("正确密码通过登录", login.DialogResult == DialogResult.OK,
                 login.DialogResult.ToString());
+            Check("登录成功记住用户名", auth.LastLoginUser == "admin", auth.LastLoginUser);
         }
 
         // 管理员能看到全部导航项（含设置与用户管理）
@@ -270,6 +282,46 @@ internal static class UiFlowTest
         Check("用户列表含 admin 与 staff",
             grid is not null && grid.Rows.Count >= 2, $"{grid?.Rows.Count} 行");
         host.Close();
+
+        // 打印预览窗口：能打开、三联齐全、翻页/缩放可用
+        var notes = repo.QueryNotes();
+        if (notes.Count > 0)
+        {
+            var note = repo.GetNote(notes[0].Id)!;
+            using var pv = new Printing.PreviewForm(note, repo);
+            pv.Show();
+            Application.DoEvents();
+
+            var pics = FindDescendants<PictureBox>(pv).ToList();
+            Check("预览窗口已打开", pv.Visible, pv.Text);
+            Check("预览有三联缩略图", pics.Count >= 3, $"{pics.Count} 个缩略图");
+            Check("预览主图已加载", pics.Any(p => p.Image is not null));
+
+            var buttons = FindDescendants<Button>(pv).Select(b => b.Text).ToList();
+            Check("预览有翻页按钮", buttons.Any(t => t.Contains("下一页")) && buttons.Any(t => t.Contains("上一页")));
+            Check("预览有缩放按钮", buttons.Any(t => t.Contains("放大")) && buttons.Any(t => t.Contains("缩小")));
+            Check("预览能直接打印", buttons.Any(t => t.Contains("打印")));
+            Check("预览按钮全中文", buttons.All(t => !t.Contains("Print") && !t.Contains("Zoom")),
+                string.Join(",", buttons));
+
+            // 核对主图实际占位（DrawToBitmap 在 Wine 下渲染不全，改用坐标断言）
+            var mainPic = pics.OrderByDescending(p => p.Width * p.Height).First();
+            Check("预览主图占位非零", mainPic.Width > 100 && mainPic.Height > 100,
+                $"{mainPic.Width}x{mainPic.Height}");
+            Check("预览主图在可视区内", mainPic.Width <= pv.ClientSize.Width,
+                $"{mainPic.Width} <= {pv.ClientSize.Width}");
+
+            // 让窗口在 X 上真实绘制，供外部截图
+            pv.TopMost = true;
+            for (var i = 0; i < 40; i++) { Application.DoEvents(); Thread.Sleep(50); }
+
+            var layout = new System.Text.StringBuilder();
+            foreach (var c in FindDescendants<Control>(pv))
+                layout.AppendLine($"{c.GetType().Name}\t{c.Text}\t{c.Bounds}");
+            File.WriteAllText(Path.Combine(outDir, "preview-layout.txt"), layout.ToString());
+
+            pv.Close();
+        }
 
         return failures;
     }

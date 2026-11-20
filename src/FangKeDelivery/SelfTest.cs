@@ -59,6 +59,11 @@ internal static class SelfTest
             Receiver = "王收货",
             Maker = "管理员",
             Remark = "自检单据，请勿使用",
+            Contact = "王联系人",
+            DeliveryMethod = "送货上门",
+            Transporter = "张司机",
+            VehicleNo = "鲁A12345",
+            SettleMethod = "月结",
             Items =
             {
                 new NoteItem { ProductName = "纯棉毛巾", Spec = "34×76cm", Unit = "条", Qty = 12, Price = 8.50m },
@@ -74,6 +79,11 @@ internal static class SelfTest
         Check("note total", (saved?.TotalAmount ?? 0m).ToString("0.00"), "191.70");
         Check("note amount words", saved?.TotalAmountInWords ?? "", "壹佰玖拾壹元柒角");
         Check("note status", saved?.Status.ToString() ?? "", "未送货");
+        Check("note contact", saved?.Contact ?? "", "王联系人");
+        Check("note delivery method", saved?.DeliveryMethod ?? "", "送货上门");
+        Check("note transporter", saved?.Transporter ?? "", "张司机");
+        Check("note vehicle no", saved?.VehicleNo ?? "", "鲁A12345");
+        Check("note settle method", saved?.SettleMethod ?? "", "月结");
 
         // 状态变更
         repo.SetNoteStatus(new[] { id }, NoteStatus.已送货);
@@ -105,6 +115,9 @@ internal static class SelfTest
             log.AppendLine("FAIL  print render: " + ex.Message);
         }
 
+        // ---- 三联分页 ----
+        failures += RunPrintCopyChecks(repo, id, outDir, log);
+
         // 清理自检数据
         repo.DeleteNotes(new[] { id });
         repo.DeleteCustomers(new[] { customer.Id });
@@ -117,6 +130,168 @@ internal static class SelfTest
         File.WriteAllText(reportPath, log.ToString(), System.Text.Encoding.UTF8);
         Console.WriteLine(log.ToString());
         return failures;
+    }
+
+    /// <summary>验证三联分页：张数、联次标注、续页、空行撑满。</summary>
+    private static int RunPrintCopyChecks(Repository repo, long noteId, string outDir, System.Text.StringBuilder log)
+    {
+        var failures = 0;
+        void Check(string name, bool ok, string detail = "")
+        {
+            if (!ok) failures++;
+            log.AppendLine($"{(ok ? "PASS" : "FAIL")}  {name}{(detail.Length > 0 ? "  -> " + detail : "")}");
+        }
+
+        var note = repo.GetNote(noteId)!;
+
+        // 少量商品：三联应恰好 3 页
+        using (var doc = new NotePrintDocument(note, repo))
+        {
+            doc.PrintTimeOverride = new DateTime(2026, 1, 1, 9, 0, 0);
+            var pages = doc.RenderAllPages(1f);
+            try
+            {
+                Check("三联共 3 页", pages.Count == 3, $"{pages.Count} 页");
+                Check("每页尺寸一致",
+                    pages.Select(p => $"{p.Width}x{p.Height}").Distinct().Count() == 1,
+                    pages.Count > 0 ? $"{pages[0].Width}x{pages[0].Height}" : "无页面");
+
+                for (var i = 0; i < pages.Count; i++)
+                {
+                    pages[i].Save(Path.Combine(outDir, $"print-copy{i + 1}.png"),
+                        System.Drawing.Imaging.ImageFormat.Png);
+                }
+
+                var hashes = pages.Select(HashBitmap).Distinct().Count();
+                Check("三页内容各不相同（联次标注生效）", hashes == pages.Count, $"{hashes} 种");
+
+                // 三联差异应仅限于右上角的联次标注，正文必须一模一样
+                if (pages.Count == 3)
+                {
+                    var diff = DiffBounds(pages[0], pages[1]);
+                    var diff23 = DiffBounds(pages[1], pages[2]);
+                    var hasDiff = diff is not null && diff23 is not null;
+                    Check("三联之间存在差异", hasDiff);
+
+                    if (hasDiff)
+                    {
+                        var box = Rectangle.Union(diff!.Value, diff23!.Value);
+                        var w = pages[0].Width;
+                        Check("差异只在右上角（联次标注处）",
+                            box.Right > w / 2 && box.Bottom < 80,
+                            $"差异范围 {box}");
+                        Check("差异不侵入正文区", box.Top < 80, $"起始 y={box.Top}");
+                    }
+                }
+            }
+            finally
+            {
+                foreach (var p in pages) p.Dispose();
+            }
+        }
+
+        // 打印版式开关：预印单模式右侧留白，铺满模式占满可打印区
+        using (var doc = new NotePrintDocument(repo.GetNote(noteId)!, repo))
+        {
+            doc.AlignToPrePrinted = true;
+            var pages = doc.RenderAllPages(1f);
+            try
+            {
+                var w = pages[0].Width;
+                var margin = RightmostInk(pages[0]);
+                Check("预印单模式右侧留白", margin < w * 0.85,
+                    $"最右墨迹 {margin} / 宽 {w}");
+            }
+            finally { foreach (var p in pages) p.Dispose(); }
+        }
+
+        using (var doc = new NotePrintDocument(repo.GetNote(noteId)!, repo))
+        {
+            doc.AlignToPrePrinted = false;
+            var pages = doc.RenderAllPages(1f);
+            try
+            {
+                var w = pages[0].Width;
+                var margin = RightmostInk(pages[0]);
+                Check("铺满模式用到右侧区域", margin > w * 0.85,
+                    $"最右墨迹 {margin} / 宽 {w}");
+            }
+            finally { foreach (var p in pages) p.Dispose(); }
+        }
+
+        // 商品过多：应跨页续打，总页数是 3 的倍数
+        var many = repo.GetNote(noteId)!;
+        many.Items.Clear();
+        for (var i = 1; i <= 40; i++)
+        {
+            many.Items.Add(new NoteItem
+            {
+                ProductName = $"长清单测试商品{i:00}",
+                Spec = "标准",
+                Unit = "件",
+                Qty = 1,
+                Price = 10m
+            });
+        }
+
+        using (var doc = new NotePrintDocument(many, repo))
+        {
+            var pages = doc.RenderAllPages(1f);
+            try
+            {
+                Check("40 行商品会跨页", pages.Count > 3, $"{pages.Count} 页");
+                Check("跨页后每联页数相同", pages.Count % 3 == 0, $"{pages.Count} 页");
+            }
+            finally
+            {
+                foreach (var p in pages) p.Dispose();
+            }
+        }
+
+        return failures;
+    }
+
+    /// <summary>返回两张图不相同像素的包围盒；完全相同时返回 null。</summary>
+    private static Rectangle? DiffBounds(Bitmap a, Bitmap b)
+    {
+        var minX = int.MaxValue; var minY = int.MaxValue;
+        var maxX = int.MinValue; var maxY = int.MinValue;
+        var w = Math.Min(a.Width, b.Width);
+        var h = Math.Min(a.Height, b.Height);
+
+        for (var y = 0; y < h; y++)
+        {
+            for (var x = 0; x < w; x++)
+            {
+                if (a.GetPixel(x, y) == b.GetPixel(x, y)) continue;
+                if (x < minX) minX = x;
+                if (y < minY) minY = y;
+                if (x > maxX) maxX = x;
+                if (y > maxY) maxY = y;
+            }
+        }
+
+        if (minX > maxX) return null;
+        return Rectangle.FromLTRB(minX, minY, maxX + 1, maxY + 1);
+    }
+
+    /// <summary>最右侧有墨迹的列号，用于判断版式横向铺开程度。</summary>
+    private static int RightmostInk(Bitmap bmp)
+    {
+        for (var x = bmp.Width - 1; x >= 0; x--)
+            for (var y = 0; y < bmp.Height; y++)
+            {
+                var c = bmp.GetPixel(x, y);
+                if (c.R < 200 || c.G < 200 || c.B < 200) return x;
+            }
+        return 0;
+    }
+
+    private static string HashBitmap(Bitmap bmp)
+    {
+        using var ms = new MemoryStream();
+        bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+        return Convert.ToBase64String(System.Security.Cryptography.MD5.HashData(ms.ToArray()));
     }
 
     /// <summary>账号、密码散列与角色权限的校验。</summary>

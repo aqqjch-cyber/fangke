@@ -237,8 +237,10 @@ public sealed class Repository
                 cmd.CommandText = """
                     INSERT INTO DeliveryNote
                       (NoteNo,CustomerId,CustomerName,CustomerPhone,CustomerAddress,NoteDate,
-                       TotalAmount,Remark,Salesman,Receiver,Maker,Status,CreatedAt,UpdatedAt)
-                    VALUES($no,$cid,$cn,$cp,$ca,$d,$amt,$rm,$sm,$rc,$mk,$st,$now,$now);
+                       TotalAmount,Remark,Salesman,Receiver,Maker,Status,CreatedAt,UpdatedAt,
+                       Contact,DeliveryMethod,Transporter,VehicleNo,SettleMethod)
+                    VALUES($no,$cid,$cn,$cp,$ca,$d,$amt,$rm,$sm,$rc,$mk,$st,$now,$now,
+                           $ct,$dm,$tp,$vn,$se);
                     SELECT last_insert_rowid();
                     """;
                 cmd.Parameters.AddWithValue("$now", now);
@@ -249,7 +251,8 @@ public sealed class Repository
                     UPDATE DeliveryNote SET
                       NoteNo=$no,CustomerId=$cid,CustomerName=$cn,CustomerPhone=$cp,CustomerAddress=$ca,
                       NoteDate=$d,TotalAmount=$amt,Remark=$rm,Salesman=$sm,Receiver=$rc,Maker=$mk,
-                      Status=$st,UpdatedAt=$now
+                      Status=$st,UpdatedAt=$now,Contact=$ct,DeliveryMethod=$dm,
+                      Transporter=$tp,VehicleNo=$vn,SettleMethod=$se
                     WHERE Id=$id;
                     SELECT $id;
                     """;
@@ -269,6 +272,11 @@ public sealed class Repository
             cmd.Parameters.AddWithValue("$rc", note.Receiver);
             cmd.Parameters.AddWithValue("$mk", note.Maker);
             cmd.Parameters.AddWithValue("$st", (int)note.Status);
+            cmd.Parameters.AddWithValue("$ct", note.Contact);
+            cmd.Parameters.AddWithValue("$dm", note.DeliveryMethod);
+            cmd.Parameters.AddWithValue("$tp", note.Transporter);
+            cmd.Parameters.AddWithValue("$vn", note.VehicleNo);
+            cmd.Parameters.AddWithValue("$se", note.SettleMethod);
             note.Id = Convert.ToInt64(cmd.ExecuteScalar());
         }
 
@@ -344,7 +352,8 @@ public sealed class Repository
 
         var sql = "SELECT n.Id,n.NoteNo,n.CustomerId,n.CustomerName,n.CustomerPhone,n.CustomerAddress,n.NoteDate," +
                   "n.TotalAmount,n.Remark,n.Salesman,n.Receiver,n.Maker,n.Status,n.CreatedAt,n.UpdatedAt," +
-                  "(SELECT IFNULL(SUM(i.Qty),0) FROM NoteItem i WHERE i.NoteId=n.Id) AS TotalQty " +
+                  "(SELECT IFNULL(SUM(i.Qty),0) FROM NoteItem i WHERE i.NoteId=n.Id) AS TotalQty," +
+                  NoteExtraColumns + " " +
                   "FROM DeliveryNote n ";
         if (where.Count > 0)
             sql += "WHERE " + string.Join(" AND ", where) + " ";
@@ -352,6 +361,9 @@ public sealed class Repository
 
         return QueryNotes(conn, null, ps, sql);
     }
+
+    private const string NoteExtraColumns =
+        "n.Contact,n.DeliveryMethod,n.Transporter,n.VehicleNo,n.SettleMethod";
 
     private static List<DeliveryNote> QueryNotes(SqliteConnection conn, string? whereClause,
         Dictionary<string, object?> ps, string? fullSql = null)
@@ -366,7 +378,8 @@ public sealed class Repository
             cmd.CommandText =
                 "SELECT n.Id,n.NoteNo,n.CustomerId,n.CustomerName,n.CustomerPhone,n.CustomerAddress,n.NoteDate," +
                 "n.TotalAmount,n.Remark,n.Salesman,n.Receiver,n.Maker,n.Status,n.CreatedAt,n.UpdatedAt," +
-                "(SELECT IFNULL(SUM(i.Qty),0) FROM NoteItem i WHERE i.NoteId=n.Id) AS TotalQty " +
+                "(SELECT IFNULL(SUM(i.Qty),0) FROM NoteItem i WHERE i.NoteId=n.Id) AS TotalQty," +
+                NoteExtraColumns + " " +
                 "FROM DeliveryNote n " + (whereClause ?? "") + " ORDER BY n.NoteDate DESC, n.Id DESC";
         }
         foreach (var kv in ps)
@@ -393,7 +406,12 @@ public sealed class Repository
                 Status = (NoteStatus)r.GetInt32(12),
                 CreatedAt = r.GetString(13),
                 UpdatedAt = r.GetString(14),
-                TotalQty = r.FieldCount > 15 && !r.IsDBNull(15) ? (decimal)r.GetDouble(15) : 0m
+                TotalQty = r.FieldCount > 15 && !r.IsDBNull(15) ? (decimal)r.GetDouble(15) : 0m,
+                Contact = r.FieldCount > 16 ? r.GetString(16) : "",
+                DeliveryMethod = r.FieldCount > 17 ? r.GetString(17) : "",
+                Transporter = r.FieldCount > 18 ? r.GetString(18) : "",
+                VehicleNo = r.FieldCount > 19 ? r.GetString(19) : "",
+                SettleMethod = r.FieldCount > 20 ? r.GetString(20) : ""
             });
         }
         return list;

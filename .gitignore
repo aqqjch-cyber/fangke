@@ -11,3 +11,6 @@ uitest/
 dist/*.exe
 dist/out/
 out/
+dist/lay/
+dist/uitest/
+dist/data/

@@ -30,16 +30,7 @@ public static class NotePrinter
 
     public static void ShowPreview(DeliveryNote note, Repository repo, IWin32Window? owner)
     {
-        using var doc = new NotePrintDocument(note, repo) { PreviewOnly = true };
-        using var dlg = new PrintPreviewDialog
-        {
-            Document = doc,
-            Width = 1000,
-            Height = 740,
-            UseAntiAlias = true,
-            Text = $"送货单打印预览 — {note.NoteNo}",
-            StartPosition = FormStartPosition.CenterParent
-        };
+        using var dlg = new PreviewForm(note, repo);
         dlg.ShowDialog(owner);
     }
 }

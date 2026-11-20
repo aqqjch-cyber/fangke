@@ -28,6 +28,17 @@ public sealed class AuthService
             ? ""
             : $"首次使用：管理员 admin / {DefaultAdminPassword}，员工 staff / staff123";
 
+    /// <summary>登录页下拉用：已启用的账号，按角色降序（管理员在前）。</summary>
+    public List<User> ListLoginUsers() =>
+        _repo.ListUsers().Where(u => u.IsEnabled).ToList();
+
+    /// <summary>记住上次登录的用户名，下次打开登录页默认选中。</summary>
+    public string LastLoginUser => _repo.GetSetting("LastLoginUser", "");
+
+    /// <summary>登录成功后记住用户名，省去下次重新输入。</summary>
+    public void RememberLoginUser(string userName) =>
+        _repo.SetSetting("LastLoginUser", (userName ?? "").Trim());
+
     /// <summary>首次运行没有账号时创建默认管理员。</summary>
     public void EnsureDefaultAdmin()
     {

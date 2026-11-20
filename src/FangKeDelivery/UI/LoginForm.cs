@@ -5,7 +5,7 @@ namespace FangKeDelivery.UI;
 public sealed class LoginForm : Form
 {
     private readonly AuthService _auth;
-    private TextBox _user = null!;
+    private ComboBox _user = null!;
     private TextBox _pass = null!;
     private CheckBox _show = null!;
     private Label _error = null!;
@@ -31,7 +31,7 @@ public sealed class LoginForm : Form
         Controls.Add(banner);
 
         AcceptButton = _ok;
-        Shown += (_, _) => _user.Focus();
+        Shown += (_, _) => _pass.Focus();
     }
 
     private Panel BuildBanner()
@@ -120,13 +120,15 @@ public sealed class LoginForm : Form
         var userLabel = Theme.FieldLabel("用户名");
         userLabel.Location = new Point(56, 168);
 
-        _user = new TextBox
+        _user = new ComboBox
         {
             Location = new Point(56, 190),
             Width = 300,
             Font = Theme.Font(11f),
-            BorderStyle = BorderStyle.FixedSingle
+            DropDownStyle = ComboBoxStyle.DropDown,
+            FlatStyle = FlatStyle.Flat
         };
+        LoadLoginUsers();
 
         var passLabel = Theme.FieldLabel("密码");
         passLabel.Location = new Point(56, 238);
@@ -183,6 +185,26 @@ public sealed class LoginForm : Form
         return panel;
     }
 
+    /// <summary>填充用户名下拉：管理员在前，默认选中上次登录的账号。</summary>
+    private void LoadLoginUsers()
+    {
+        var users = _auth.ListLoginUsers();
+        _user.Items.Clear();
+        foreach (var u in users)
+            _user.Items.Add(u.UserName);
+
+        var last = _auth.LastLoginUser;
+        var pick = users.FirstOrDefault(u =>
+            string.Equals(u.UserName, last, StringComparison.OrdinalIgnoreCase));
+
+        if (pick is not null)
+            _user.Text = pick.UserName;
+        else if (_user.Items.Count > 0)
+            _user.SelectedIndex = 0;
+        else
+            _user.Text = "admin";
+    }
+
     private void DoLogin()
     {
         _ok.Enabled = false;
@@ -192,6 +214,7 @@ public sealed class LoginForm : Form
             if (result.Ok)
             {
                 _error.Text = "";
+                _auth.RememberLoginUser(_user.Text);
                 DialogResult = DialogResult.OK;
                 Close();
                 return;

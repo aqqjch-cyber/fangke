@@ -18,6 +18,11 @@ public sealed class NoteEditorPage : UserControl, IRefreshable
     private readonly TextBox _salesman = Theme.Input();
     private readonly TextBox _receiver = Theme.Input();
     private readonly TextBox _remark = Theme.Input();
+    private readonly TextBox _contact = Theme.Input();
+    private readonly TextBox _deliveryMethod = Theme.Input();
+    private readonly TextBox _transporter = Theme.Input();
+    private readonly TextBox _vehicleNo = Theme.Input();
+    private readonly TextBox _settleMethod = Theme.Input();
     private readonly DataGridView _grid = new();
     private readonly Label _lblTotal = new();
     private readonly Label _lblWords = new();
@@ -48,7 +53,7 @@ public sealed class NoteEditorPage : UserControl, IRefreshable
             RowCount = 3,
             BackColor = Theme.PageBack
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 158));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 212));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 104));
 
@@ -72,14 +77,14 @@ public sealed class NoteEditorPage : UserControl, IRefreshable
         {
             Dock = DockStyle.Fill,
             ColumnCount = 8,
-            RowCount = 3,
+            RowCount = 5,
             BackColor = Color.White
         };
         for (var i = 0; i < 8; i++)
             grid.ColumnStyles.Add(new ColumnStyle(i % 2 == 0 ? SizeType.Absolute : SizeType.Percent,
                 i % 2 == 0 ? 74 : 33));
-        for (var i = 0; i < 3; i++)
-            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33f));
+        for (var i = 0; i < 5; i++)
+            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 20f));
 
         _customer.DropDownStyle = ComboBoxStyle.DropDown;
         _customer.Font = Theme.BodyFont;
@@ -110,7 +115,17 @@ public sealed class NoteEditorPage : UserControl, IRefreshable
         _receiver.Dock = DockStyle.Fill;
         _receiver.Margin = new Padding(0, 4, 12, 4);
         _remark.Dock = DockStyle.Fill;
-        _remark.Margin = new Padding(0, 4, 0, 4);
+        _remark.Margin = new Padding(0, 4, 12, 4);
+        _contact.Dock = DockStyle.Fill;
+        _contact.Margin = new Padding(0, 4, 12, 4);
+        _deliveryMethod.Dock = DockStyle.Fill;
+        _deliveryMethod.Margin = new Padding(0, 4, 12, 4);
+        _transporter.Dock = DockStyle.Fill;
+        _transporter.Margin = new Padding(0, 4, 12, 4);
+        _vehicleNo.Dock = DockStyle.Fill;
+        _vehicleNo.Margin = new Padding(0, 4, 12, 4);
+        _settleMethod.Dock = DockStyle.Fill;
+        _settleMethod.Margin = new Padding(0, 4, 12, 4);
 
         AddField(grid, 0, 0, "客户", _customer, 2);
         AddField(grid, 4, 0, "电话", _phone, 1);
@@ -119,7 +134,12 @@ public sealed class NoteEditorPage : UserControl, IRefreshable
         AddField(grid, 4, 1, "单号", _noteNo, 1);
         AddField(grid, 6, 1, "送货员", _salesman, 1);
         AddField(grid, 0, 2, "收货人", _receiver, 1);
-        AddField(grid, 2, 2, "备注", _remark, 3);
+        AddField(grid, 2, 2, "联系人", _contact, 1);
+        AddField(grid, 4, 2, "送货方式", _deliveryMethod, 1);
+        AddField(grid, 6, 2, "结算方式", _settleMethod, 1);
+        AddField(grid, 0, 3, "运货人", _transporter, 1);
+        AddField(grid, 2, 3, "运货车号", _vehicleNo, 1);
+        AddField(grid, 4, 3, "备注", _remark, 3);
 
         card.Controls.Add(grid);
         return card;
@@ -362,6 +382,11 @@ public sealed class NoteEditorPage : UserControl, IRefreshable
             _address.Text = "";
             _remark.Text = "";
             _receiver.Text = "";
+            _contact.Text = "";
+            _deliveryMethod.Text = "";
+            _transporter.Text = "";
+            _vehicleNo.Text = "";
+            _settleMethod.Text = "";
             _date.Value = DateTime.Today;
             _salesman.Text = _repo.GetSetting("Salesman", "");
             _noteNo.Text = _repo.NextNoteNo(DateTime.Today);
@@ -392,6 +417,11 @@ public sealed class NoteEditorPage : UserControl, IRefreshable
             _address.Text = note.CustomerAddress;
             _salesman.Text = note.Salesman;
             _receiver.Text = note.Receiver;
+            _contact.Text = note.Contact;
+            _deliveryMethod.Text = note.DeliveryMethod;
+            _transporter.Text = note.Transporter;
+            _vehicleNo.Text = note.VehicleNo;
+            _settleMethod.Text = note.SettleMethod;
             _remark.Text = note.Remark;
 
             _grid.Rows.Clear();
@@ -435,6 +465,11 @@ public sealed class NoteEditorPage : UserControl, IRefreshable
             _address.Text = src.CustomerAddress;
             _salesman.Text = src.Salesman;
             _receiver.Text = src.Receiver;
+            _contact.Text = src.Contact;
+            _deliveryMethod.Text = src.DeliveryMethod;
+            _transporter.Text = src.Transporter;
+            _vehicleNo.Text = src.VehicleNo;
+            _settleMethod.Text = src.SettleMethod;
             _remark.Text = src.Remark;
 
             _grid.Rows.Clear();
@@ -639,6 +674,11 @@ public sealed class NoteEditorPage : UserControl, IRefreshable
             Remark = _remark.Text.Trim(),
             Salesman = _salesman.Text.Trim(),
             Receiver = _receiver.Text.Trim(),
+            Contact = _contact.Text.Trim(),
+            DeliveryMethod = _deliveryMethod.Text.Trim(),
+            Transporter = _transporter.Text.Trim(),
+            VehicleNo = _vehicleNo.Text.Trim(),
+            SettleMethod = _settleMethod.Text.Trim(),
             Maker = _repo.GetSetting("Maker", "")
         };
 

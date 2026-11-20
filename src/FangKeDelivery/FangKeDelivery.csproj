@@ -14,8 +14,8 @@
     <ApplicationIcon>app.ico</ApplicationIcon>
     <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
     <SatelliteResourceLanguages>zh-Hans</SatelliteResourceLanguages>
-    <Version>1.0.0</Version>
-    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.2.0</Version>
+    <FileVersion>1.2.0.0</FileVersion>
     <Company>方可软件</Company>
     <Product>方可送货单管理系统</Product>
     <Copyright>Copyright © 方可软件</Copyright>

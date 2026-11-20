@@ -12,6 +12,14 @@ public sealed class SettingsPage : UserControl, IRefreshable
     private readonly TextBox _maker = Theme.Input();
     private readonly TextBox _salesman = Theme.Input();
     private readonly TextBox _footer = Theme.Input();
+    private readonly TextBox _fax = Theme.Input();
+    private readonly CheckBox _prePrinted = new()
+    {
+        Text = "按预印单（241-1）位置排版：内容靠左，右侧留白对齐预印框",
+        AutoSize = true,
+        Font = Theme.BodyFont,
+        ForeColor = Theme.TextSub
+    };
     private readonly Label _dbPath = new();
     private readonly Label _dbSize = new();
     private readonly Label _counts = new();
@@ -55,7 +63,7 @@ public sealed class SettingsPage : UserControl, IRefreshable
     {
         var card = new Theme.RoundedPanel
         {
-            Height = 340,
+            Height = 420,
             Margin = new Padding(0, 0, 0, 12),
             Padding = new Padding(20, 16, 20, 16)
         };
@@ -72,15 +80,16 @@ public sealed class SettingsPage : UserControl, IRefreshable
         var t = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 230,
+            Height = 312,
             ColumnCount = 2,
-            RowCount = 6,
+            RowCount = 8,
             BackColor = Color.White
         };
         t.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96));
         t.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        for (var i = 0; i < 6; i++)
+        for (var i = 0; i < 7; i++)
             t.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        t.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
 
         void Row(int i, string label, Control c)
         {
@@ -100,10 +109,12 @@ public sealed class SettingsPage : UserControl, IRefreshable
 
         Row(0, "公司名称", _company);
         Row(1, "联系电话", _phone);
-        Row(2, "公司地址", _address);
-        Row(3, "制单人", _maker);
-        Row(4, "默认送货员", _salesman);
-        Row(5, "单据页脚说明", _footer);
+        Row(2, "传真", _fax);
+        Row(3, "公司地址", _address);
+        Row(4, "制单人", _maker);
+        Row(5, "默认送货员", _salesman);
+        Row(6, "单据页脚说明", _footer);
+        Row(7, "打印版式", _prePrinted);
 
         var save = Theme.PrimaryButton("保存设置", 100, 34);
         save.Click += (_, _) => SaveSettings();
@@ -233,6 +244,8 @@ public sealed class SettingsPage : UserControl, IRefreshable
         _maker.Text = _repo.GetSetting("Maker", "");
         _salesman.Text = _repo.GetSetting("Salesman", "");
         _footer.Text = _repo.GetSetting("PrintFooter", "客户签收后请妥善保管，作为结算凭证。");
+        _fax.Text = _repo.GetSetting("CompanyFax", "");
+        _prePrinted.Checked = _repo.GetSetting("PrintAlignPrePrinted", "1") != "0";
 
         _dbPath.Text = AppPaths.DatabasePath;
         try
@@ -263,6 +276,8 @@ public sealed class SettingsPage : UserControl, IRefreshable
         _repo.SetSetting("Maker", _maker.Text.Trim());
         _repo.SetSetting("Salesman", _salesman.Text.Trim());
         _repo.SetSetting("PrintFooter", _footer.Text.Trim());
+        _repo.SetSetting("CompanyFax", _fax.Text.Trim());
+        _repo.SetSetting("PrintAlignPrePrinted", _prePrinted.Checked ? "1" : "0");
 
         Msg.Show(FindForm(), "设置已保存，打印时会使用新的公司信息。", "保存成功",
             MessageBoxButtons.OK, MessageBoxIcon.Information);

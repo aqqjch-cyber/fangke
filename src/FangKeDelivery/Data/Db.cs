@@ -133,6 +133,45 @@ public sealed class Db
             CREATE INDEX IF NOT EXISTS IX_Product_Name ON Product(Name);
             """;
         cmd.ExecuteNonQuery();
+
+        MigrateColumns(conn);
+    }
+
+    /// <summary>
+    /// 老版本数据库缺少后加的列。SQLite 没有 ADD COLUMN IF NOT EXISTS，
+    /// 只能先查 table_info 再补，保证升级不丢数据。
+    /// </summary>
+    private static void MigrateColumns(SqliteConnection conn)
+    {
+        var wanted = new (string Table, string Column, string Ddl)[]
+        {
+            ("DeliveryNote", "Contact", "TEXT NOT NULL DEFAULT ''"),
+            ("DeliveryNote", "DeliveryMethod", "TEXT NOT NULL DEFAULT ''"),
+            ("DeliveryNote", "Transporter", "TEXT NOT NULL DEFAULT ''"),
+            ("DeliveryNote", "VehicleNo", "TEXT NOT NULL DEFAULT ''"),
+            ("DeliveryNote", "SettleMethod", "TEXT NOT NULL DEFAULT ''")
+        };
+
+        foreach (var (table, column, ddl) in wanted)
+        {
+            if (HasColumn(conn, table, column)) continue;
+            using var alter = conn.CreateCommand();
+            alter.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {ddl};";
+            alter.ExecuteNonQuery();
+        }
+    }
+
+    private static bool HasColumn(SqliteConnection conn, string table, string column)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"PRAGMA table_info({table});";
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            if (string.Equals(r.GetString(1), column, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     public static string Now() => DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
