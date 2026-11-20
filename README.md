@@ -8,13 +8,34 @@ Windows 桌面送货单软件，绿色免安装、单文件 EXE、本地 SQLite 
 
 ---
 
-## 一、直接使用（推荐）
+## 一、安装到 D:\fangke
 
-`dist/FangKeDelivery.exe` —— 双击即运行，**不需要安装 .NET，不需要联网**。
+### 方式一：一键安装（推荐）
 
-- 首次运行会在 exe 同目录创建 `data\` 文件夹存放数据库
-- 换电脑 / 备份：把整个文件夹（含 `data`）一起复制即可
-- 支持 Windows 10 / 11（64 位）
+按 `Win + X` → 选 **Windows PowerShell**，粘贴这一整段回车：
+
+```powershell
+$d='D:\fangke'; New-Item -ItemType Directory -Force $d | Out-Null; Invoke-WebRequest 'https://github.com/aqqjch-cyber/fangke/releases/download/v1.0.0/FangKeDelivery.exe' -OutFile "$d\FangKeDelivery.exe"; Start-Process "$d\FangKeDelivery.exe"
+```
+
+它会自动建好 `D:\fangke`、下载程序、并启动。
+
+### 方式二：手动下载
+
+1. 打开 [Releases 页面](https://github.com/aqqjch-cyber/fangke/releases/latest)
+2. 下载 `FangKeDelivery.exe`（约 67 MB）
+3. 在 `D:\` 下新建 `fangke` 文件夹，把 exe 放进去
+4. 双击运行
+
+### 说明
+
+- **不需要安装 .NET，不需要联网**，绿色免安装
+- 仅支持 **64 位 Windows 10 / 11**
+- 首次运行会在 exe 同目录创建 `data\` 文件夹存数据
+- 首次运行 Windows 可能提示 SmartScreen，点 **更多信息 → 仍要运行**
+- 换电脑：把整个 `D:\fangke` 文件夹复制过去即可
+
+> 源码在 `src/`，可自行编译（见第五节）。exe 不进 git 历史，只作为 Release 附件发布。
 
 ---
 
