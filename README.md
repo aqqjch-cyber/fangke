@@ -155,6 +155,8 @@ FangKeDelivery.exe --dump-layout <输出目录>
 
 | 文件 | 内容 |
 |------|------|
+| `login.png` | 登录界面 |
+| `main.png` | 登录后的主界面（右上角显示当前登录人） |
 | `note.png` | 开单界面（录入、自动算金额、大写合计） |
 | `list.png` | 单据列表（35 张示例单据） |
 | `customer.png` / `product.png` | 基础资料 |
