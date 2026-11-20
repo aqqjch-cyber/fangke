@@ -60,6 +60,21 @@ public sealed class Db
                 Value TEXT NOT NULL DEFAULT ''
             );
 
+            CREATE TABLE IF NOT EXISTS AppUser (
+                Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                UserName    TEXT NOT NULL UNIQUE,
+                DisplayName TEXT NOT NULL DEFAULT '',
+                Role        INTEGER NOT NULL DEFAULT 0,
+                PasswordHash TEXT NOT NULL,
+                Salt        TEXT NOT NULL,
+                IsEnabled   INTEGER NOT NULL DEFAULT 1,
+                CreatedAt   TEXT NOT NULL DEFAULT '',
+                LastLoginAt TEXT NOT NULL DEFAULT ''
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS UX_AppUser_UserName
+                ON AppUser(UserName COLLATE NOCASE);
+
             CREATE TABLE IF NOT EXISTS Customer (
                 Id        INTEGER PRIMARY KEY AUTOINCREMENT,
                 Name      TEXT NOT NULL,

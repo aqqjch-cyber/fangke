@@ -15,7 +15,7 @@ Windows 桌面送货单软件，绿色免安装、单文件 EXE、本地 SQLite 
 按 `Win + X` → 选 **Windows PowerShell**，粘贴这一整段回车：
 
 ```powershell
-$d='D:\fangke'; New-Item -ItemType Directory -Force $d | Out-Null; Invoke-WebRequest 'https://github.com/aqqjch-cyber/fangke/releases/download/v1.0.0/FangKeDelivery.exe' -OutFile "$d\FangKeDelivery.exe"; Start-Process "$d\FangKeDelivery.exe"
+$d='D:\fangke'; New-Item -ItemType Directory -Force $d | Out-Null; Invoke-WebRequest 'https://github.com/aqqjch-cyber/fangke/releases/download/v1.1.0/FangKeDelivery.exe' -OutFile "$d\FangKeDelivery.exe"; Start-Process "$d\FangKeDelivery.exe"
 ```
 
 它会自动建好 `D:\fangke`、下载程序、并启动。
@@ -33,6 +33,7 @@ $d='D:\fangke'; New-Item -ItemType Directory -Force $d | Out-Null; Invoke-WebReq
 - 仅支持 **64 位 Windows 10 / 11**
 - 首次运行会在 exe 同目录创建 `data\` 文件夹存数据
 - 首次运行 Windows 可能提示 SmartScreen，点 **更多信息 → 仍要运行**
+- **首次登录默认管理员账号：`admin` / 密码 `admin123`**，登录后请立即在「系统 → 修改我的密码」里改掉
 - 换电脑：把整个 `D:\fangke` 文件夹复制过去即可
 
 > 源码在 `src/`，可自行编译（见第五节）。exe 不进 git 历史，只作为 Release 附件发布。
@@ -49,6 +50,8 @@ $d='D:\fangke'; New-Item -ItemType Directory -Force $d | Out-Null; Invoke-WebReq
 | 商品资料 | 增删改查，含规格、单位、参考单价 |
 | 统计报表 | 按客户汇总（含占比）、按商品汇总、按月汇总；4 项 KPI 卡片；本月/上月/本年快捷区间 |
 | 系统设置 | 公司抬头信息、制单人、默认送货员、页脚说明；数据备份与恢复 |
+| 账号登录 | 启动先登录，管理员/员工两种角色；密码加盐散列存储，连续 5 次错误锁定 5 分钟 |
+| 用户管理 | 仅管理员可见：新增/修改/停用/删除账号、重置密码；不能删除自己，至少保留一个管理员 |
 | 打印 | 标准三联送货单（存根联/客户联/回单联）；打印预览；自动补空行 |
 
 ### 关键业务规则
@@ -57,6 +60,14 @@ $d='D:\fangke'; New-Item -ItemType Directory -Force $d | Out-Null; Invoke-WebReq
 - **金额大写**：严格按财务规范，含「零」的处理（如 `10.05` → `壹拾元零伍分`、`1005` → `壹仟零伍元整`）
 - **空行处理**：未填商品名称的行不计入合计、不写入数据库
 - **单据状态**：未送货 → 已送货 → 已结算
+- **权限**：管理员可做全部操作（含系统设置、用户管理、备份恢复）；员工仅能开单、查单、管客户商品、看报表
+
+### 账号与密码
+
+- 密码用 **PBKDF2-HMAC-SHA256 + 随机盐** 存储，数据库里看不到明文
+- 同一密码每次生成的散列都不同（盐随机），但都能校验通过
+- 连续输错 5 次锁定该账号 5 分钟，防暴力猜解
+- 修改密码需先验证原密码；管理员可重置任意账号密码
 
 ---
 
@@ -113,24 +124,24 @@ dotnet publish src/FangKeDelivery/FangKeDelivery.csproj \
 软件内置三个无人值守自检入口，用于开发期回归（正常运行不会触发）：
 
 ```bash
-# 金额大写 / 数据存取 / 打印渲染
+# 金额大写 / 数据存取 / 打印渲染 / 账号密码与权限
 FangKeDelivery.exe --selftest <输出目录>
 
-# 真实控件走一遍开单流程（录入→联动→保存→查询）
+# 真实控件走一遍开单流程 + 登录窗口 + 角色导航（录入→联动→保存→查询）
 FangKeDelivery.exe --uitest <输出目录>
 
-# 六个页面的布局缺陷检查（零尺寸、越界、文字裁剪）
+# 七个页面的布局缺陷检查（零尺寸、越界、文字裁剪）
 FangKeDelivery.exe --dump-layout <输出目录>
 ```
 
-当前状态：**金额与数据自检 27 项全部通过；UI 流程 25 项全部通过；六页面布局 0 缺陷。**
+当前回归结果：自检 **54 项全部通过**、UI 流程 **37 项全部通过**、七个页面布局 **0 缺陷**。
 
 ---
 
 ## 六、数据说明
 
 - 数据库：`data\fangke.db`（SQLite，退出时自动合并日志，单独复制这一个文件即完整备份）
-- 表：`Customer`、`Product`、`DeliveryNote`、`NoteItem`、`Settings`
+- 表：`Customer`、`Product`、`DeliveryNote`、`NoteItem`、`Settings`、`AppUser`（账号，只存密码散列）
 - 备份：`文件 → 备份数据` 或 `系统设置 → 立即备份`，生成 `data\backup\fangke-时间戳.db`
 - 恢复：选择备份文件覆盖当前数据库
 

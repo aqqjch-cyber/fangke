@@ -19,7 +19,7 @@ internal static class UiFlowTest
             log.AppendLine($"{(ok ? "PASS" : "FAIL")}  {name}{(detail.Length > 0 ? "  -> " + detail : "")}");
         }
 
-        var form = new MainForm(repo);
+        var form = new MainForm(repo, TestLogin.AsAdmin(repo));
         form.Show();
         Application.DoEvents();
 
@@ -174,10 +174,103 @@ internal static class UiFlowTest
 
         form.Close();
 
+        failures += RunAuthUiChecks(repo, log);
+
         log.AppendLine();
         log.AppendLine(failures == 0 ? "ALL UI FLOW CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         File.WriteAllText(Path.Combine(outDir, "uiflow.txt"), log.ToString(), System.Text.Encoding.UTF8);
         Console.WriteLine(log.ToString());
+        return failures;
+    }
+
+    /// <summary>登录窗口与角色权限的界面级校验。</summary>
+    private static int RunAuthUiChecks(Repository repo, System.Text.StringBuilder log)
+    {
+        var failures = 0;
+        void Check(string name, bool ok, string detail = "")
+        {
+            if (!ok) failures++;
+            log.AppendLine($"{(ok ? "PASS" : "FAIL")}  {name}{(detail.Length > 0 ? "  -> " + detail : "")}");
+        }
+
+        // 登录窗口可构造，且控件齐全
+        var auth = new Core.AuthService(repo);
+        auth.EnsureDefaultAdmin();
+
+        using (var login = new LoginForm(auth))
+        {
+            login.Show();
+            Application.DoEvents();
+
+            var boxes = FindDescendants<TextBox>(login).ToList();
+            Check("登录窗口有用户名/密码框", boxes.Count >= 2, $"{boxes.Count} 个输入框");
+            Check("登录窗口有登录按钮",
+                FindDescendants<Button>(login).Any(b => b.Text.Contains("登")), "");
+
+            // 错误密码应留在窗口内并提示，而不是放行
+            boxes[0].Text = "admin";
+            boxes[1].Text = "definitely_wrong";
+            var loginBtn = FindDescendants<Button>(login).First(b => b.Text.Contains("登"));
+            loginBtn.PerformClick();
+            Application.DoEvents();
+            Check("错误密码不放行", login.DialogResult != DialogResult.OK,
+                login.DialogResult.ToString());
+
+            // 正确密码应放行
+            boxes[1].Text = Core.AuthService.DefaultAdminPassword;
+            loginBtn.PerformClick();
+            Application.DoEvents();
+            Check("正确密码通过登录", login.DialogResult == DialogResult.OK,
+                login.DialogResult.ToString());
+        }
+
+        // 管理员能看到全部导航项（含设置与用户管理）
+        var adminAuth = TestLogin.AsAdmin(repo);
+        using (var adminForm = new MainForm(repo, adminAuth))
+        {
+            adminForm.Show();
+            Application.DoEvents();
+
+            var navTexts = FindDescendants<Button>(adminForm)
+                .Select(b => b.Text).ToList();
+            Check("管理员导航含系统设置", navTexts.Any(t => t.Contains("系统设置")));
+            Check("管理员导航含用户管理", navTexts.Any(t => t.Contains("用户管理")));
+            Check("主界面显示当前登录人",
+                FindDescendants<Label>(adminForm).Any(l => l.Text.Contains("管理员")),
+                "");
+
+            adminForm.Close();
+        }
+
+        // 员工看不到设置/用户管理
+        var staffAuth = TestLogin.AsStaff(repo);
+        using (var staffForm = new MainForm(repo, staffAuth))
+        {
+            staffForm.Show();
+            Application.DoEvents();
+
+            var navTexts = FindDescendants<Button>(staffForm)
+                .Select(b => b.Text).ToList();
+            Check("员工导航无系统设置", !navTexts.Any(t => t.Contains("系统设置")));
+            Check("员工导航无用户管理", !navTexts.Any(t => t.Contains("用户管理")));
+            Check("员工仍有开单入口", navTexts.Any(t => t.Contains("开单")));
+            Check("员工仍有单据列表", navTexts.Any(t => t.Contains("单据列表")));
+
+            staffForm.Close();
+        }
+
+        // 用户管理页可加载并列出账号
+        var userPage = new UI.Pages.UserPage(repo, adminAuth);
+        var host = new Form { Size = new Size(1000, 640) };
+        host.Controls.Add(userPage);
+        host.Show();
+        Application.DoEvents();
+        var grid = FindDescendants<DataGridView>(userPage).FirstOrDefault();
+        Check("用户管理页有表格", grid is not null);
+        Check("用户列表含 admin 与 staff",
+            grid is not null && grid.Rows.Count >= 2, $"{grid?.Rows.Count} 行");
+        host.Close();
+
         return failures;
     }
 

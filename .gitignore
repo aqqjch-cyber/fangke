@@ -9,3 +9,5 @@ layout/
 selftest/
 uitest/
 dist/*.exe
+dist/out/
+out/

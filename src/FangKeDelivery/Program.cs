@@ -5,6 +5,16 @@ namespace FangKeDelivery;
 
 internal static class Program
 {
+    private static void Trace(string msg)
+    {
+        try
+        {
+            File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup.log"),
+                $"{DateTime.Now:HH:mm:ss} {msg}\n");
+        }
+        catch { }
+    }
+
     [STAThread]
     private static void Main()
     {
@@ -17,12 +27,16 @@ internal static class Program
         {
             var db = new Db(Core.AppPaths.DatabasePath);
             db.Initialize();
+            var args = Environment.GetCommandLineArgs();
+            // 必须在任何可能弹窗的逻辑之前设置，否则无人值守运行时会被模态框卡死
+            if (args.Any(a => a is "--dump-layout" or "--selftest" or "--uitest"))
+                Msg.AutoAnswer = true;
+
             var repo = new Repository(db);
             SeedIfEmpty(repo);
 
-            var args = Environment.GetCommandLineArgs();
-            if (args.Any(a => a is "--dump-layout" or "--selftest" or "--uitest"))
-                Msg.AutoAnswer = true;
+            var auth = new Core.AuthService(repo);
+            auth.EnsureDefaultAdmin();
 
             var dumpIndex = Array.FindIndex(args, a => a == "--dump-layout");
             if (dumpIndex >= 0)
@@ -47,7 +61,14 @@ internal static class Program
                 return;
             }
 
-            Application.Run(new MainForm(repo));
+            // 登录通过后才进入主界面；取消登录直接退出
+            using (var login = new LoginForm(auth))
+            {
+                if (login.ShowDialog() != DialogResult.OK)
+                    return;
+            }
+
+            Application.Run(new MainForm(repo, auth));
         }
         catch (Exception ex)
         {
@@ -62,12 +83,12 @@ internal static class Program
         var outDir = dumpIndex + 1 < args.Length ? args[dumpIndex + 1] : Path.Combine(AppContext.BaseDirectory, "layout");
         Directory.CreateDirectory(outDir);
 
-        var form = new MainForm(repo);
+        var form = new MainForm(repo, TestLogin.AsAdmin(repo));
         form.Show();
         Application.DoEvents();
 
         var report = new System.Text.StringBuilder();
-        var pages = new[] { "note", "list", "customer", "product", "report", "settings" };
+        var pages = new[] { "note", "list", "customer", "product", "report", "settings", "users" };
 
         foreach (var page in pages)
         {

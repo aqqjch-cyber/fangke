@@ -8,9 +8,12 @@ namespace FangKeDelivery;
 public sealed class MainForm : Form
 {
     private readonly Repository _repo;
+    private readonly AuthService _auth;
     private readonly Panel _content;
     private readonly Label _titleLabel;
     private readonly Label _crumbLabel;
+    private Label _userLabel = null!;
+    private Button _userNavBtn = null!;
     private readonly StatusStrip _status;
     private readonly ToolStripStatusLabel _statusLeft;
     private readonly ToolStripStatusLabel _statusRight;
@@ -18,9 +21,10 @@ public sealed class MainForm : Form
     private readonly Dictionary<string, UserControl> _pages = new();
     private string _current = "";
 
-    public MainForm(Repository repo)
+    public MainForm(Repository repo, AuthService auth)
     {
         _repo = repo;
+        _auth = auth;
 
         Text = "方可送货单管理系统 — 单机版";
         StartPosition = FormStartPosition.CenterScreen;
@@ -53,7 +57,50 @@ public sealed class MainForm : Form
         MainMenuStrip = menu;
 
         ShowPage("note");
+        UpdateUserBadge();
         RefreshStatus();
+    }
+
+    /// <summary>右上角显示当前登录人，员工额外标注角色。</summary>
+    private void UpdateUserBadge()
+    {
+        var u = _auth.Current;
+        if (u is null) { _userLabel.Text = ""; return; }
+        var name = string.IsNullOrWhiteSpace(u.DisplayName) ? u.UserName : u.DisplayName;
+        _userLabel.Text = $"{name}（{u.Role}）";
+        _userLabel.Left = Math.Max(200, (_userLabel.Parent?.Width ?? 1000) - _userLabel.Width - 90);
+    }
+
+    private void ChangeOwnPassword()
+    {
+        using var dlg = new PasswordDialog("修改我的密码", true);
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+        var r = _auth.ChangeOwnPassword(dlg.OldPassword, dlg.Password);
+        Msg.Show(this, r.Message, "修改密码", MessageBoxButtons.OK,
+            r.Ok ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+    }
+
+    /// <summary>退出当前账号回到登录窗口；取消登录则关闭程序。</summary>
+    private void SwitchUser()
+    {
+        if (Msg.Show(this, "确定要退出当前账号吗？未保存的单据将会丢失。", "切换账号",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            return;
+
+        _auth.Logout();
+        using var login = new LoginForm(_auth);
+        if (login.ShowDialog(this) != DialogResult.OK)
+        {
+            Close();
+            return;
+        }
+
+        // 角色可能变了，重建整个界面（导航项、菜单都跟角色相关）
+        var next = new MainForm(_repo, _auth);
+        next.Show();
+        Hide();
+        next.FormClosed += (_, _) => Close();
     }
 
     private static Icon? LoadAppIcon()
@@ -84,9 +131,13 @@ public sealed class MainForm : Form
         var file = new ToolStripMenuItem("文件(&F)");
         file.DropDownItems.Add(Item("新建送货单(&N)", Keys.Control | Keys.N, () => ShowPage("note")));
         file.DropDownItems.Add(new ToolStripSeparator());
-        file.DropDownItems.Add(Item("备份数据(&B)...", Keys.None, BackupData));
-        file.DropDownItems.Add(Item("恢复数据(&R)...", Keys.None, RestoreData));
-        file.DropDownItems.Add(new ToolStripSeparator());
+        if (_auth.IsAdmin)
+        {
+            file.DropDownItems.Add(Item("备份数据(&B)...", Keys.None, BackupData));
+            file.DropDownItems.Add(Item("恢复数据(&R)...", Keys.None, RestoreData));
+            file.DropDownItems.Add(new ToolStripSeparator());
+        }
+        file.DropDownItems.Add(Item("切换账号(&S)...", Keys.None, SwitchUser));
         file.DropDownItems.Add(Item("退出(&X)", Keys.Alt | Keys.F4, Close));
 
         var basic = new ToolStripMenuItem("基础资料(&M)");
@@ -101,7 +152,13 @@ public sealed class MainForm : Form
         report.DropDownItems.Add(Item("销售统计(&S)", Keys.None, () => ShowPage("report")));
 
         var tool = new ToolStripMenuItem("系统(&T)");
-        tool.DropDownItems.Add(Item("系统设置(&O)", Keys.None, () => ShowPage("settings")));
+        if (_auth.IsAdmin)
+        {
+            tool.DropDownItems.Add(Item("系统设置(&O)", Keys.None, () => ShowPage("settings")));
+            tool.DropDownItems.Add(Item("用户管理(&U)", Keys.None, () => ShowPage("users")));
+            tool.DropDownItems.Add(new ToolStripSeparator());
+        }
+        tool.DropDownItems.Add(Item("修改我的密码(&P)...", Keys.None, ChangeOwnPassword));
         tool.DropDownItems.Add(Item("打开数据目录(&D)", Keys.None, () =>
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(AppPaths.DataDirectory)
             { UseShellExecute = true })));
@@ -161,7 +218,7 @@ public sealed class MainForm : Form
 
         var version = new Label
         {
-            Text = "v1.0",
+            Text = "v1.1",
             ForeColor = Color.FromArgb(170, 200, 240),
             Font = Theme.Font(8.5f),
             AutoSize = true,
@@ -169,8 +226,22 @@ public sealed class MainForm : Form
         };
         version.Location = new Point(header.Width - 50, 22);
 
-        header.Controls.AddRange(new Control[] { logo, title, crumb, version });
-        header.Resize += (_, _) => version.Left = header.Width - version.Width - 22;
+        _userLabel = new Label
+        {
+            Text = "",
+            ForeColor = Color.White,
+            Font = Theme.Font(9f),
+            AutoSize = true,
+            Anchor = AnchorStyles.Top | AnchorStyles.Right
+        };
+        _userLabel.Location = new Point(header.Width - 220, 21);
+
+        header.Controls.AddRange(new Control[] { logo, title, crumb, _userLabel, version });
+        header.Resize += (_, _) =>
+        {
+            version.Left = header.Width - version.Width - 22;
+            _userLabel.Left = version.Left - _userLabel.Width - 18;
+        };
         return header;
     }
 
@@ -178,15 +249,16 @@ public sealed class MainForm : Form
     {
         var nav = new Panel { Dock = DockStyle.Left, Width = 190, BackColor = Color.White, Padding = new Padding(10, 14, 10, 10) };
 
-        var items = new (string key, string text, string glyph)[]
+        var items = new List<(string key, string text, string glyph)>
         {
             ("note", "开单 / 送货单", "✎"),
             ("list", "单据列表", "☰"),
             ("customer", "客户资料", "👥"),
             ("product", "商品资料", "📦"),
-            ("report", "统计报表", "📊"),
-            ("settings", "系统设置", "⚙")
+            ("report", "统计报表", "📊")
         };
+        if (_auth.IsAdmin) items.Add(("settings", "系统设置", "⚙"));
+        if (_auth.IsAdmin) items.Add(("users", "用户管理", "🔑"));
 
         var y = 14;
         foreach (var (key, text, glyph) in items)
@@ -227,9 +299,30 @@ public sealed class MainForm : Form
             Left = 14,
             Top = y + 20,
             Width = 162,
-            Height = 44
+            Height = 36
         };
         nav.Controls.Add(tip);
+
+        _userNavBtn = new Button
+        {
+            Text = "  🔓   切换账号",
+            Left = 10,
+            Top = y + 62,
+            Width = 170,
+            Height = 38,
+            FlatStyle = FlatStyle.Flat,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Font = Theme.Font(9f),
+            Cursor = Cursors.Hand,
+            BackColor = Color.White,
+            ForeColor = Theme.TextSub,
+            UseVisualStyleBackColor = false,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+        };
+        _userNavBtn.FlatAppearance.BorderSize = 0;
+        _userNavBtn.FlatAppearance.MouseOverBackColor = Theme.PrimaryLight;
+        _userNavBtn.Click += (_, _) => SwitchUser();
+        nav.Controls.Add(_userNavBtn);
 
         nav.Paint += (_, e) =>
         {
@@ -274,6 +367,7 @@ public sealed class MainForm : Form
             "product" => "商品资料",
             "report" => "统计报表",
             "settings" => "系统设置",
+            "users" => "用户管理",
             _ => "方可送货单管理系统"
         };
         _crumbLabel.Text = "单机版 · 本地数据存储";
@@ -304,6 +398,7 @@ public sealed class MainForm : Form
         "product" => new ProductPage(_repo),
         "report" => new ReportPage(_repo),
         "settings" => new SettingsPage(_repo),
+        "users" => new UserPage(_repo, _auth),
         _ => new NoteEditorPage(_repo, this)
     };
 

@@ -561,4 +561,133 @@ public sealed class Repository
         cmd.CommandText = $"SELECT COUNT(*) FROM {table}";
         return Convert.ToInt32(cmd.ExecuteScalar());
     }
+
+    // ---------- 用户 ----------
+
+    private static User ReadUser(SqliteDataReader r) => new()
+    {
+        Id = r.GetInt64(0),
+        UserName = r.GetString(1),
+        DisplayName = r.GetString(2),
+        Role = (UserRole)r.GetInt32(3),
+        IsEnabled = r.GetInt32(4) != 0,
+        CreatedAt = r.GetString(5),
+        LastLoginAt = r.GetString(6)
+    };
+
+    private const string UserColumns = "Id,UserName,DisplayName,Role,IsEnabled,CreatedAt,LastLoginAt";
+
+    public List<User> ListUsers()
+    {
+        using var conn = _db.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"SELECT {UserColumns} FROM AppUser ORDER BY Role DESC, UserName";
+        var list = new List<User>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add(ReadUser(r));
+        return list;
+    }
+
+    public User? FindUser(string userName)
+    {
+        using var conn = _db.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"SELECT {UserColumns} FROM AppUser WHERE UserName=$u COLLATE NOCASE";
+        cmd.Parameters.AddWithValue("$u", userName.Trim());
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? ReadUser(r) : null;
+    }
+
+    public bool UserExists(string userName) => FindUser(userName) is not null;
+
+    public bool HasAnyUser()
+    {
+        using var conn = _db.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM AppUser";
+        return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
+    }
+
+    public long InsertUser(User user, string password)
+    {
+        var (hash, salt) = PasswordHasher.Create(password);
+        using var conn = _db.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO AppUser(UserName,DisplayName,Role,PasswordHash,Salt,IsEnabled,CreatedAt,LastLoginAt)
+            VALUES($u,$d,$r,$h,$s,$e,$now,'');
+            SELECT last_insert_rowid();
+            """;
+        cmd.Parameters.AddWithValue("$u", user.UserName.Trim());
+        cmd.Parameters.AddWithValue("$d", user.DisplayName.Trim());
+        cmd.Parameters.AddWithValue("$r", (int)user.Role);
+        cmd.Parameters.AddWithValue("$h", hash);
+        cmd.Parameters.AddWithValue("$s", salt);
+        cmd.Parameters.AddWithValue("$e", user.IsEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("$now", Db.Now());
+        return Convert.ToInt64(cmd.ExecuteScalar());
+    }
+
+    public void UpdateUserProfile(long id, string displayName, UserRole role, bool enabled)
+    {
+        using var conn = _db.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE AppUser SET DisplayName=$d, Role=$r, IsEnabled=$e WHERE Id=$id";
+        cmd.Parameters.AddWithValue("$d", displayName.Trim());
+        cmd.Parameters.AddWithValue("$r", (int)role);
+        cmd.Parameters.AddWithValue("$e", enabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    public void SetPassword(long id, string password)
+    {
+        var (hash, salt) = PasswordHasher.Create(password);
+        using var conn = _db.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE AppUser SET PasswordHash=$h, Salt=$s WHERE Id=$id";
+        cmd.Parameters.AddWithValue("$h", hash);
+        cmd.Parameters.AddWithValue("$s", salt);
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>返回 (hash, salt, enabled)；用户不存在时返回 null。</summary>
+    public (string Hash, string Salt, bool Enabled)? GetCredentials(string userName)
+    {
+        using var conn = _db.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT PasswordHash,Salt,IsEnabled FROM AppUser WHERE UserName=$u COLLATE NOCASE";
+        cmd.Parameters.AddWithValue("$u", userName.Trim());
+        using var r = cmd.ExecuteReader();
+        if (!r.Read()) return null;
+        return (r.GetString(0), r.GetString(1), r.GetInt32(2) != 0);
+    }
+
+    public void TouchLastLogin(long id)
+    {
+        using var conn = _db.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE AppUser SET LastLoginAt=$now WHERE Id=$id";
+        cmd.Parameters.AddWithValue("$now", Db.Now());
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    public void DeleteUser(long id)
+    {
+        using var conn = _db.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM AppUser WHERE Id=$id";
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    public int CountAdmins()
+    {
+        using var conn = _db.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM AppUser WHERE Role=1 AND IsEnabled=1";
+        return Convert.ToInt32(cmd.ExecuteScalar());
+    }
 }
