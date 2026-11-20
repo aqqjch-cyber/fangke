@@ -15,10 +15,12 @@ public sealed class AuditPage : UserControl, IRefreshable
     private readonly TabControl _tabs = new();
 
     private readonly DataGridView _noteGrid = new();
+    private readonly ComboBox _noteFilter = new();
     private readonly Label _noteSummary = new();
     private readonly List<DeliveryNote> _notes = new();
 
     private readonly DataGridView _inGrid = new();
+    private readonly ComboBox _inFilter = new();
     private readonly Label _inSummary = new();
     private readonly List<StockIn> _ins = new();
 
@@ -116,12 +118,15 @@ public sealed class AuditPage : UserControl, IRefreshable
         var actions = new FlowLayoutPanel
         {
             Dock = DockStyle.Right,
-            Width = 390,
+            Width = 500,
             FlowDirection = FlowDirection.RightToLeft,
             BackColor = Color.White,
             Padding = new Padding(0, 6, 0, 0)
         };
         foreach (var b in new[] { approve, reject, unapprove, open }) actions.Controls.Add(b);
+
+        BuildStatusFilter(_noteFilter, actions);
+        _noteFilter.SelectedIndexChanged += (_, _) => ReloadNotes();
 
         bar.Controls.Add(title);
         bar.Controls.Add(actions);
@@ -198,12 +203,15 @@ public sealed class AuditPage : UserControl, IRefreshable
         var actions = new FlowLayoutPanel
         {
             Dock = DockStyle.Right,
-            Width = 300,
+            Width = 410,
             FlowDirection = FlowDirection.RightToLeft,
             BackColor = Color.White,
             Padding = new Padding(0, 6, 0, 0)
         };
         foreach (var b in new[] { approve, reject, unapprove }) actions.Controls.Add(b);
+
+        BuildStatusFilter(_inFilter, actions);
+        _inFilter.SelectedIndexChanged += (_, _) => ReloadIns();
 
         bar.Controls.Add(title);
         bar.Controls.Add(actions);
@@ -294,6 +302,36 @@ public sealed class AuditPage : UserControl, IRefreshable
         g.Columns.Add(c);
     }
 
+
+    /// <summary>审核页的状态筛选：默认只看待审，也能切到已审核/已驳回查历史。</summary>
+    private static void BuildStatusFilter(ComboBox box, FlowLayoutPanel host)
+    {
+        box.Width = 104;
+        box.DropDownStyle = ComboBoxStyle.DropDownList;
+        box.FlatStyle = FlatStyle.Flat;
+        box.Font = Theme.BodyFont;
+        box.Margin = new Padding(8, 0, 0, 0);
+        box.Items.AddRange(new object[] { "待审核", "已审核", "已驳回", "全部" });
+        box.SelectedIndex = 0;
+        host.Controls.Add(box);
+    }
+
+    private ApproveStatus? NoteFilterStatus() => _noteFilter.SelectedIndex switch
+    {
+        0 => ApproveStatus.待审核,
+        1 => ApproveStatus.已审核,
+        2 => ApproveStatus.已驳回,
+        _ => null
+    };
+
+    private ApproveStatus? InFilterStatus() => _inFilter.SelectedIndex switch
+    {
+        0 => ApproveStatus.待审核,
+        1 => ApproveStatus.已审核,
+        2 => ApproveStatus.已驳回,
+        _ => null
+    };
+
     public void Reload()
     {
         ReloadNotes();
@@ -304,7 +342,10 @@ public sealed class AuditPage : UserControl, IRefreshable
     private void ReloadNotes()
     {
         _notes.Clear();
-        _notes.AddRange(_repo.QueryNotesByApproval(ApproveStatus.待审核));
+        var noteStatus = NoteFilterStatus();
+        _notes.AddRange(noteStatus is null
+            ? _repo.QueryNotes()
+            : _repo.QueryNotesByApproval(noteStatus.Value));
 
         _noteGrid.DataSource = _notes.Select(n => new
         {
@@ -319,13 +360,15 @@ public sealed class AuditPage : UserControl, IRefreshable
             n.CreatedAt
         }).ToList();
 
-        _noteSummary.Text = $"共 {_notes.Count} 张待审核送货单 · 合计金额 {_notes.Sum(n => n.TotalAmount):N2} 元";
+        var noteLabel = _noteFilter.SelectedIndex == 3 ? "全部" : _noteFilter.Text;
+        _noteSummary.Text = $"共 {_notes.Count} 张{noteLabel}送货单 · 合计金额 {_notes.Sum(n => n.TotalAmount):N2} 元";
     }
 
     private void ReloadIns()
     {
         _ins.Clear();
-        _ins.AddRange(_repo.QueryStockIns(null, null, null, ApproveStatus.待审核));
+        var inStatus = InFilterStatus();
+        _ins.AddRange(_repo.QueryStockIns(null, null, null, inStatus));
 
         _inGrid.DataSource = _ins.Select(d => new
         {
@@ -339,7 +382,8 @@ public sealed class AuditPage : UserControl, IRefreshable
             d.Maker
         }).ToList();
 
-        _inSummary.Text = $"共 {_ins.Count} 张待审核入库单 · 合计金额 {_ins.Sum(d => d.TotalAmount):N2} 元";
+        var inLabel = _inFilter.SelectedIndex == 3 ? "全部" : _inFilter.Text;
+        _inSummary.Text = $"共 {_ins.Count} 张{inLabel}入库单 · 合计金额 {_ins.Sum(d => d.TotalAmount):N2} 元";
     }
 
     private void ReloadLogs()

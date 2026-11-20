@@ -54,7 +54,7 @@ public sealed class LoginForm : Form
 
         var sub = new Label
         {
-            Text = "单机版 · 送货单据管理",
+            Text = "单机版 · 送货单据与进销存",
             Font = Theme.Font(11f),
             ForeColor = Color.FromArgb(210, 227, 250),
             AutoSize = true,
@@ -70,7 +70,7 @@ public sealed class LoginForm : Form
 
         var tips = new Label
         {
-            Text = "送货单开单 · 三联打印\n客户商品资料 · 统计报表\n数据本地保存，不联网",
+            Text = "送货单开单 · 三联打印\n库存台账 · 审核流转\n数据本地保存，不联网",
             Font = Theme.Font(9.5f),
             ForeColor = Color.FromArgb(190, 214, 242),
             AutoSize = true,
@@ -79,7 +79,7 @@ public sealed class LoginForm : Form
 
         var ver = new Label
         {
-            Text = "v1.1.0",
+            Text = "v1.3.1",
             Font = Theme.SmallFont,
             ForeColor = Color.FromArgb(150, 185, 225),
             AutoSize = true,
@@ -119,10 +119,13 @@ public sealed class LoginForm : Form
 
         var userLabel = Theme.FieldLabel("用户名");
         userLabel.Location = new Point(56, 168);
+        userLabel.Width = 300;
+        userLabel.TextAlign = ContentAlignment.MiddleLeft;
+        userLabel.Height = 20;
 
         _user = new ComboBox
         {
-            Location = new Point(56, 190),
+            Location = new Point(56, 192),
             Width = 300,
             Font = Theme.Font(11f),
             DropDownStyle = ComboBoxStyle.DropDown,
@@ -132,10 +135,13 @@ public sealed class LoginForm : Form
 
         var passLabel = Theme.FieldLabel("密码");
         passLabel.Location = new Point(56, 238);
+        passLabel.Width = 300;
+        passLabel.TextAlign = ContentAlignment.MiddleLeft;
+        passLabel.Height = 20;
 
         _pass = new TextBox
         {
-            Location = new Point(56, 260),
+            Location = new Point(56, 262),
             Width = 300,
             Font = Theme.Font(11f),
             BorderStyle = BorderStyle.FixedSingle,
@@ -145,7 +151,7 @@ public sealed class LoginForm : Form
         _show = new CheckBox
         {
             Text = "显示密码",
-            Location = new Point(56, 292),
+            Location = new Point(56, 296),
             AutoSize = true,
             Font = Theme.SmallFont,
             ForeColor = Theme.TextSub
@@ -154,19 +160,19 @@ public sealed class LoginForm : Form
 
         _error = new Label
         {
-            Location = new Point(56, 318),
-            Size = new Size(320, 32),
+            Location = new Point(56, 322),
+            Size = new Size(320, 26),
             Font = Theme.SmallFont,
             ForeColor = Theme.Danger,
             Text = ""
         };
 
         _ok = Theme.PrimaryButton("登 录", 300, 40);
-        _ok.Location = new Point(56, 356);
+        _ok.Location = new Point(56, 352);
         _ok.Click += (_, _) => DoLogin();
 
         var cancel = Theme.SecondaryButton("退 出", 300, 34);
-        cancel.Location = new Point(56, 404);
+        cancel.Location = new Point(56, 400);
         cancel.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
 
         var seed = new Label
@@ -174,7 +180,7 @@ public sealed class LoginForm : Form
             Text = _auth.HasAnyUserHint(),
             Font = Theme.SmallFont,
             ForeColor = Theme.TextSub,
-            Location = new Point(56, 444),
+            Location = new Point(56, 440),
             Size = new Size(360, 18)
         };
 

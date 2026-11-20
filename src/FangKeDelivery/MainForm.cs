@@ -354,6 +354,11 @@ public sealed class MainForm : Form
             page.Dock = DockStyle.Fill;
             _pages[key] = page;
         }
+        else if (page is IRefreshable refreshable)
+        {
+            // 页面是缓存复用的，切回来时必须重读数据，否则会看到上次的旧内容
+            refreshable.Reload();
+        }
 
         _content.SuspendLayout();
         _content.Controls.Clear();

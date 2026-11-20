@@ -69,6 +69,13 @@ internal static class Program
                 return;
             }
 
+            var demoIndex = Array.FindIndex(args, a => a == "--demo");
+            if (demoIndex >= 0)
+            {
+                RunDemoSeed(repo);
+                return;
+            }
+
             // 登录通过后才进入主界面；取消登录直接退出
             using (var login = new LoginForm(auth))
             {
@@ -133,11 +140,38 @@ internal static class Program
         var outDir = dumpIndex + 1 < args.Length ? args[dumpIndex + 1] : Path.Combine(AppContext.BaseDirectory, "layout");
         Directory.CreateDirectory(outDir);
 
+        var report = new System.Text.StringBuilder();
+
+        // 登录窗口：独立窗口，之前没纳入检查，漏掉了输入框与标签错位
+        using (var login = new UI.LoginForm(new Core.AuthService(repo)))
+        {
+            login.Show();
+            Application.DoEvents();
+            UI.LayoutDump.Write(login, Path.Combine(outDir, "layout-login.txt"));
+            var lp = UI.LayoutDump.Validate(login);
+            report.AppendLine($"=== login === {lp.Count} problem(s)");
+            foreach (var p in lp.Distinct().Take(25)) report.AppendLine("  " + p);
+            login.Close();
+        }
+
+        // 打印预览窗口：检查主图是否完整落在可视区内
+        var anyNote = repo.QueryNotes().FirstOrDefault();
+        if (anyNote is not null)
+        {
+            using var pv = new Printing.PreviewForm(repo.GetNote(anyNote.Id)!, repo);
+            pv.Show();
+            Application.DoEvents();
+            Application.DoEvents();
+            UI.LayoutDump.Write(pv, Path.Combine(outDir, "layout-preview.txt"));
+            var pp = UI.LayoutDump.Validate(pv);
+            report.AppendLine($"=== preview === {pp.Count} problem(s)");
+            foreach (var p in pp.Distinct().Take(25)) report.AppendLine("  " + p);
+            pv.Close();
+        }
+
         var form = new MainForm(repo, TestLogin.AsAdmin(repo));
         form.Show();
         Application.DoEvents();
-
-        var report = new System.Text.StringBuilder();
         var pages = new[]
         {
             "note", "list", "stockin", "stock", "customer", "product", "audit", "report", "settings", "users"
@@ -171,6 +205,82 @@ internal static class Program
 
         File.WriteAllText(Path.Combine(outDir, "report.txt"), report.ToString(), System.Text.Encoding.UTF8);
         form.Close();
+    }
+
+    /// <summary>造一批演示单据，方便试用和验收；重复执行会跳过已存在的单号。</summary>
+    private static void RunDemoSeed(Repository repo)
+    {
+        try
+        {
+            var products = repo.GetProducts();
+            var customers = repo.GetCustomers();
+            if (products.Count == 0 || customers.Count == 0)
+            {
+                Console.WriteLine("演示数据需要商品和客户，请先正常启动一次程序。");
+                return;
+            }
+
+            var existing = repo.QueryNotes().Select(n => n.NoteNo).ToHashSet();
+            var made = 0;
+
+            (string no, int dayOffset, int qtyA, int qtyB, Core.ApproveStatus status)[] plan =
+            {
+                ("SD-DEMO-0001", -2, 20, 5, Core.ApproveStatus.待审核),
+                ("SD-DEMO-0002", -1, 10, 3, Core.ApproveStatus.待审核),
+                ("SD-DEMO-0003", -3, 8, 2, Core.ApproveStatus.已审核)
+            };
+
+            foreach (var (no, dayOffset, qtyA, qtyB, status) in plan)
+            {
+                if (existing.Contains(no)) continue;
+
+                var p1 = products[0];
+                var p2 = products.Count > 1 ? products[1] : products[0];
+                var c = customers[0];
+
+                var note = new Core.DeliveryNote
+                {
+                    NoteNo = no,
+                    CustomerId = c.Id,
+                    CustomerName = c.Name,
+                    CustomerPhone = c.Phone,
+                    CustomerAddress = c.Address,
+                    Contact = c.Contact,
+                    NoteDate = DateTime.Today.AddDays(dayOffset),
+                    DeliveryMethod = "送货上门",
+                    Transporter = "王师傅",
+                    VehicleNo = "粤B·12345",
+                    SettleMethod = "月结",
+                    Salesman = "业务员甲",
+                    Receiver = c.Contact,
+                    Maker = "管理员",
+                    ApproveStatus = status
+                };
+                note.Items.Add(new Core.NoteItem
+                {
+                    Seq = 1, ProductId = p1.Id, ProductName = p1.Name,
+                    Spec = p1.Spec, Unit = p1.Unit, Qty = qtyA, Price = p1.Price
+                });
+                note.Items.Add(new Core.NoteItem
+                {
+                    Seq = 2, ProductId = p2.Id, ProductName = p2.Name,
+                    Spec = p2.Spec, Unit = p2.Unit, Qty = qtyB, Price = p2.Price
+                });
+                note.TotalAmount = note.Items.Sum(i => i.Amount);
+
+                var id = repo.SaveNote(note);
+                if (status == Core.ApproveStatus.已审核)
+                    repo.ApproveNote(id, "管理员");
+
+                made++;
+            }
+
+            Console.WriteLine($"演示数据就绪：新增 {made} 张送货单（2 张待审核 / 1 张已审核）。");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("生成演示数据失败：" + ex.Message);
+        }
     }
 
     private static void SeedIfEmpty(Repository repo)
