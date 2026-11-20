@@ -1,0 +1,11 @@
+bin/
+obj/
+data/
+*.user
+*.db
+*.db-wal
+*.db-shm
+layout/
+selftest/
+uitest/
+dist/*.exe

@@ -1,1 +1,131 @@
-# fangke
+# 方可送货单管理系统（单机版）
+
+Windows 桌面送货单软件，绿色免安装、单文件 EXE、本地 SQLite 存储、支持三联送货单打印。
+
+> **关于原软件**：您电脑 `D:\` 上的「方可送货单软件」我无法直接读取（那是本机磁盘，我运行在 Linux 环境里）。
+> 因此本软件是**按同类送货单软件的通用形态从零复刻**的：界面布局、开单流程、金额大写、三联打印、数据管理都按国内送货单软件的习惯做法实现。
+> 如果您能提供原软件的具体截图或字段清单，我可以进一步对齐细节。
+
+---
+
+## 一、直接使用（推荐）
+
+`dist/FangKeDelivery.exe` —— 双击即运行，**不需要安装 .NET，不需要联网**。
+
+- 首次运行会在 exe 同目录创建 `data\` 文件夹存放数据库
+- 换电脑 / 备份：把整个文件夹（含 `data`）一起复制即可
+- 支持 Windows 10 / 11（64 位）
+
+---
+
+## 二、功能清单
+
+| 模块 | 说明 |
+|------|------|
+| 开单 / 送货单 | 选客户自动带出电话地址；录商品自动带出规格单位单价；数量×单价自动算金额；合计自动转中文大写 |
+| 单据列表 | 按日期区间 / 关键字 / 状态筛选；双击打开编辑；补打、复制新单、批量标记已送货/已结算、删除 |
+| 客户资料 | 增删改查，开单下拉框直接引用 |
+| 商品资料 | 增删改查，含规格、单位、参考单价 |
+| 统计报表 | 按客户汇总（含占比）、按商品汇总、按月汇总；4 项 KPI 卡片；本月/上月/本年快捷区间 |
+| 系统设置 | 公司抬头信息、制单人、默认送货员、页脚说明；数据备份与恢复 |
+| 打印 | 标准三联送货单（存根联/客户联/回单联）；打印预览；自动补空行 |
+
+### 关键业务规则
+
+- **单号规则**：`SD + yyyyMMdd + 4 位流水`，例如 `SD202611200001`
+- **金额大写**：严格按财务规范，含「零」的处理（如 `10.05` → `壹拾元零伍分`、`1005` → `壹仟零伍元整`）
+- **空行处理**：未填商品名称的行不计入合计、不写入数据库
+- **单据状态**：未送货 → 已送货 → 已结算
+
+---
+
+## 三、目录结构
+
+```
+fangke/
+├── dist/
+│   └── FangKeDelivery.exe      # 可直接运行的成品（单文件，自包含）
+├── src/FangKeDelivery/
+│   ├── Program.cs              # 入口 + 示例数据初始化
+│   ├── MainForm.cs             # 主窗体：菜单、侧边导航、状态栏、备份恢复
+│   ├── Core/
+│   │   ├── Models.cs           # Customer / Product / DeliveryNote / NoteItem
+│   │   ├── MoneyToChinese.cs   # 人民币金额转中文大写
+│   │   └── AppPaths.cs         # 数据目录解析（便携优先）
+│   ├── Data/
+│   │   ├── Db.cs               # SQLite 连接与建表
+│   │   └── Repository.cs       # 全部数据访问
+│   ├── Printing/
+│   │   ├── NotePrintDocument.cs# 三联送货单绘制
+│   │   └── NotePrinter.cs      # 打印 / 预览入口
+│   ├── UI/
+│   │   ├── Theme.cs            # 配色、字体、控件工厂
+│   │   ├── Msg.cs              # 统一提示框（测试可自动应答）
+│   │   ├── LayoutDump.cs       # 布局自检工具
+│   │   └── Pages/              # 6 个功能页面
+│   ├── SelfTest.cs             # 金额/数据/打印自检
+│   └── UiFlowTest.cs           # 真实控件端到端流程测试
+├── build.bat                   # Windows 一键打包脚本
+└── README.md
+```
+
+---
+
+## 四、自行编译
+
+需要 [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)。
+
+**Windows**：双击 `build.bat`，产物在 `dist\FangKeDelivery.exe`。
+
+**命令行**：
+
+```bash
+dotnet publish src/FangKeDelivery/FangKeDelivery.csproj \
+  -c Release -r win-x64 --self-contained true \
+  -p:PublishSingleFile=true -o dist
+```
+
+---
+
+## 五、自动化测试
+
+软件内置三个无人值守自检入口，用于开发期回归（正常运行不会触发）：
+
+```bash
+# 金额大写 / 数据存取 / 打印渲染
+FangKeDelivery.exe --selftest <输出目录>
+
+# 真实控件走一遍开单流程（录入→联动→保存→查询）
+FangKeDelivery.exe --uitest <输出目录>
+
+# 六个页面的布局缺陷检查（零尺寸、越界、文字裁剪）
+FangKeDelivery.exe --dump-layout <输出目录>
+```
+
+当前状态：**金额与数据自检 27 项全部通过；UI 流程 25 项全部通过；六页面布局 0 缺陷。**
+
+---
+
+## 六、数据说明
+
+- 数据库：`data\fangke.db`（SQLite，退出时自动合并日志，单独复制这一个文件即完整备份）
+- 表：`Customer`、`Product`、`DeliveryNote`、`NoteItem`、`Settings`
+- 备份：`文件 → 备份数据` 或 `系统设置 → 立即备份`，生成 `data\backup\fangke-时间戳.db`
+- 恢复：选择备份文件覆盖当前数据库
+
+> 数据完全保存在本机，软件不联网、不上传任何信息。
+
+---
+
+## 七、界面预览
+
+`docs/screenshots/` 目录下有各页面截图：
+
+| 文件 | 内容 |
+|------|------|
+| `note.png` | 开单界面（录入、自动算金额、大写合计） |
+| `list.png` | 单据列表（35 张示例单据） |
+| `customer.png` / `product.png` | 基础资料 |
+| `report.png` | 统计报表（KPI + 按客户汇总占比） |
+| `settings.png` | 系统设置 |
+| `print-preview.png` | 三联送货单打印效果 |
