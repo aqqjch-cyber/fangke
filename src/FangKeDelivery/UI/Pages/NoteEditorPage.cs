@@ -29,6 +29,10 @@ public sealed class NoteEditorPage : UserControl, IRefreshable
     private readonly Label _lblQty = new();
 
     private long _noteId;
+    private ApproveStatus _approveStatus = ApproveStatus.待审核;
+    private readonly Label _approveBadge = new();
+    private Button? _btnSave;
+    private Button? _btnSavePrint;
     private List<Product> _products = new();
     private List<Customer> _customers = new();
     private bool _loading;
@@ -323,20 +327,26 @@ public sealed class NoteEditorPage : UserControl, IRefreshable
             Padding = new Padding(0, 4, 0, 0)
         };
 
-        var savePrint = Theme.PrimaryButton("保存并打印", 112, 34);
-        savePrint.Click += (_, _) => SaveAndPrint();
-        var save = Theme.PrimaryButton("保存", 80, 34);
-        save.Click += (_, _) => SaveNote(false);
+        _btnSavePrint = Theme.PrimaryButton("保存并打印", 112, 34);
+        _btnSavePrint.Click += (_, _) => SaveAndPrint();
+        _btnSave = Theme.PrimaryButton("保存", 80, 34);
+        _btnSave.Click += (_, _) => SaveNote(false);
         var preview = Theme.SecondaryButton("打印预览", 92, 34);
         preview.Click += (_, _) => PrintPreview();
         var clear = Theme.SecondaryButton("新建", 70, 34);
         clear.Click += (_, _) => { if (ConfirmDiscard()) NewNote(); };
 
-        buttons.Controls.Add(savePrint);
-        buttons.Controls.Add(save);
+        buttons.Controls.Add(_btnSavePrint);
+        buttons.Controls.Add(_btnSave);
         buttons.Controls.Add(preview);
         buttons.Controls.Add(clear);
 
+        _approveBadge.AutoSize = true;
+        _approveBadge.Font = Theme.Font(9f, FontStyle.Bold);
+        _approveBadge.Location = new Point(0, 8);
+        _approveBadge.Visible = false;
+
+        right.Controls.Add(_approveBadge);
         right.Controls.Add(totalCap);
         right.Controls.Add(_lblTotal);
         right.Controls.Add(buttons);
@@ -372,6 +382,7 @@ public sealed class NoteEditorPage : UserControl, IRefreshable
     public void NewNote()
     {
         _noteId = 0;
+        _approveStatus = ApproveStatus.待审核;
         _loading = true;
         try
         {
@@ -398,6 +409,7 @@ public sealed class NoteEditorPage : UserControl, IRefreshable
             _loading = false;
         }
         RecalcTotals();
+        ApplyApproveLock();
         _grid.Focus();
     }
 
@@ -410,6 +422,7 @@ public sealed class NoteEditorPage : UserControl, IRefreshable
         try
         {
             _noteId = note.Id;
+            _approveStatus = note.ApproveStatus;
             _noteNo.Text = note.NoteNo;
             _date.Value = note.NoteDate;
             _customer.Text = note.CustomerName;
@@ -446,6 +459,43 @@ public sealed class NoteEditorPage : UserControl, IRefreshable
             _loading = false;
         }
         RecalcTotals();
+        ApplyApproveLock();
+    }
+
+    /// <summary>
+    /// 已审核单据禁止改动，否则库存与单据会对不上。
+    /// 需要改就先到审核中心反审核。
+    /// </summary>
+    private void ApplyApproveLock()
+    {
+        var locked = _approveStatus == ApproveStatus.已审核;
+        var editable = !locked;
+
+        foreach (var c in new Control[]
+                 {
+                     _customer, _phone, _address, _date, _salesman, _receiver, _remark,
+                     _contact, _deliveryMethod, _transporter, _vehicleNo, _settleMethod
+                 })
+            c.Enabled = editable;
+
+        _grid.ReadOnly = locked;
+
+        if (_btnSave is not null) _btnSave.Enabled = editable;
+        if (_btnSavePrint is not null) _btnSavePrint.Enabled = editable;
+
+        _approveBadge.Text = _approveStatus switch
+        {
+            ApproveStatus.已审核 => "✔ 已审核（如需修改请先反审核）",
+            ApproveStatus.已驳回 => "✕ 已驳回，请修改后重新送审",
+            _ => _noteId == 0 ? "" : "待审核"
+        };
+        _approveBadge.ForeColor = _approveStatus switch
+        {
+            ApproveStatus.已审核 => Theme.Accent,
+            ApproveStatus.已驳回 => Theme.Danger,
+            _ => Theme.Warn
+        };
+        _approveBadge.Visible = _approveBadge.Text.Length > 0;
     }
 
     /// <summary>把已有单据的内容载入为一张新单（新单号、今天日期、未送货状态）。</summary>

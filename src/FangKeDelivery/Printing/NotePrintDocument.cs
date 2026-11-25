@@ -14,6 +14,12 @@ public sealed class NotePrintDocument : PrintDocument
     private readonly string _companyFax;
     private readonly string _footer;
 
+    // 打印字号。放大字号前请跑自检的「表头不超格宽」用例：它用同一套字体实测宽度。
+    public const float TitlePt = 18.5f;
+    public const float CompanyPt = 12.5f;
+    public const float BodyPt = 9.5f;
+    public const float SmallPt = 8.5f;
+
     /// <summary>参考单的联次抬头：白联存根 / 红联客户联 / 黄联结算联。</summary>
     private static readonly string[] Copies = { "白联：存根", "红联：客户联", "黄联：结算联" };
 
@@ -35,8 +41,17 @@ public sealed class NotePrintDocument : PrintDocument
         OriginAtMargins = true;
     }
 
-    /// <summary>是否预览。预览时也渲染三联，便于一次看完。</summary>
+    /// <summary>是否预览。预览时也按当前联次模式渲染，所见即所印。</summary>
     public bool PreviewOnly { get; set; }
+
+    /// <summary>
+    /// 是否用复写纸。复写纸靠压感一次复写出三联，软件只能输出一页；
+    /// 输出三页会让一份单子走三遍纸，即用户反馈的「打一次出三张」。
+    /// </summary>
+    public bool CarbonCopy { get; set; } = true;
+
+    /// <summary>本次要走几遍纸：复写纸 1 遍，普通纸分三联 3 遍。</summary>
+    public int PageCopyCount => CarbonCopy ? 1 : Copies.Length;
 
     /// <summary>
     /// 按预印单（241-1）实际位置排版：内容只占纸面左侧约 79.5%，
@@ -96,7 +111,7 @@ public sealed class NotePrintDocument : PrintDocument
         // 本联画完，进入下一联
         _copyIndex++;
         _itemCursor = 0;
-        e.HasMorePages = _copyIndex < Copies.Length;
+        e.HasMorePages = _copyIndex < PageCopyCount;
     }
 
     private bool DrawCopy(Graphics g, RectangleF area, DeliveryNote note,
@@ -118,11 +133,13 @@ public sealed class NotePrintDocument : PrintDocument
     {
         nextCursor = startItem;
 
-        using var titleFont = new Font(Theme2.FontFamily, 17f, FontStyle.Bold);
-        using var companyFont = new Font(Theme2.FontFamily, 11.5f, FontStyle.Bold);
-        using var headFont = new Font(Theme2.FontFamily, 8.5f, FontStyle.Regular);
-        using var boldFont = new Font(Theme2.FontFamily, 8.5f, FontStyle.Bold);
-        using var smallFont = new Font(Theme2.FontFamily, 7.5f, FontStyle.Regular);
+        // 只放大字，行高与表格位置保持原值：预印单模式下格子是纸上印好的，
+        // 一改行高就会和预印框错位。24.5 单位行高约合 17.6pt，容得下 9.5pt。
+        using var titleFont = new Font(Theme2.FontFamily, TitlePt, FontStyle.Bold);
+        using var companyFont = new Font(Theme2.FontFamily, CompanyPt, FontStyle.Bold);
+        using var headFont = new Font(Theme2.FontFamily, BodyPt, FontStyle.Regular);
+        using var boldFont = new Font(Theme2.FontFamily, BodyPt, FontStyle.Bold);
+        using var smallFont = new Font(Theme2.FontFamily, SmallPt, FontStyle.Regular);
         using var black = new SolidBrush(Color.Black);
         using var pen = new Pen(Color.Black, 1f);
 
@@ -141,7 +158,8 @@ public sealed class NotePrintDocument : PrintDocument
         var far = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
 
         // ── 抬头 ──────────────────────────────────────────────
-        if (copyIndex >= 0 && copyIndex < Copies.Length)
+        // 复写纸一份单子覆盖三联，标单一联次会与纸上的实际联次矛盾，故不标
+        if (!CarbonCopy && copyIndex >= 0 && copyIndex < Copies.Length)
         {
             g.DrawString(Copies[copyIndex], boldFont, black,
                 new RectangleF(left, area.Top, width, 14), far);
@@ -326,7 +344,7 @@ public sealed class NotePrintDocument : PrintDocument
             ps.PaperSize.Width - m.Left - m.Right,
             ps.PaperSize.Height - m.Top - m.Bottom);
 
-        for (var copy = 0; copy < Copies.Length; copy++)
+        for (var copy = 0; copy < PageCopyCount; copy++)
         {
             var cursor = 0;
             do

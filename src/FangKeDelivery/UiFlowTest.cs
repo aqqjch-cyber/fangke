@@ -175,6 +175,7 @@ internal static class UiFlowTest
         form.Close();
 
         failures += RunAuthUiChecks(repo, outDir, log);
+        failures += RunAuditUiChecks(repo, outDir, log);
 
         log.AppendLine();
         log.AppendLine(failures == 0 ? "ALL UI FLOW CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
@@ -294,7 +295,12 @@ internal static class UiFlowTest
 
             var pics = FindDescendants<PictureBox>(pv).ToList();
             Check("预览窗口已打开", pv.Visible, pv.Text);
-            Check("预览有三联缩略图", pics.Count >= 3, $"{pics.Count} 个缩略图");
+            // 缩略图数量跟随联次模式：复写纸 1 页、普通纸分三联 3 页。
+            // 主图也是 PictureBox，按缩略图的固定尺寸把它排除掉。
+            var thumbs = pics.Count(p => p.Width <= 130 && p.Height <= 80);
+            var expectPages = Printing.NotePrinter.ReadCarbonCopy(repo) ? 1 : 3;
+            Check("预览缩略图数符合联次模式", thumbs == expectPages,
+                $"{thumbs} 个缩略图，应为 {expectPages}");
             Check("预览主图已加载", pics.Any(p => p.Image is not null));
 
             var buttons = FindDescendants<Button>(pv).Select(b => b.Text).ToList();
@@ -311,6 +317,38 @@ internal static class UiFlowTest
             Check("预览主图在可视区内", mainPic.Width <= pv.ClientSize.Width,
                 $"{mainPic.Width} <= {pv.ClientSize.Width}");
 
+            // 打印设置弹窗：默认复写纸 1 份，且合计页数随份数联动
+            using (var dlg = new Printing.PrintCopiesDialog(1, true))
+            {
+                Check("打印弹窗默认复写纸", dlg.CarbonCopy);
+                Check("打印弹窗默认 1 份", dlg.Copies == 1, dlg.Copies.ToString());
+                var hint = FindDescendants<Label>(dlg).First(l => l.Text.Contains("合计"));
+                Check("打印弹窗提示 1 份合计 1 页", hint.Text.Contains("合计 1 页"), hint.Text);
+
+                var spin = FindDescendants<NumericUpDown>(dlg).First();
+                spin.Value = 3;
+                Application.DoEvents();
+                Check("改份数后提示同步更新", hint.Text.Contains("合计 3 页"), hint.Text);
+            }
+
+            // 两种联次模式都要能预览，且页数跟随模式变化
+            var restorePly = Printing.NotePrinter.ReadCarbonCopy(repo);
+            try
+            {
+                foreach (var carbon in new[] { true, false })
+                {
+                    Printing.NotePrinter.WriteCarbonCopy(repo, carbon);
+                    using var probe = new Printing.PreviewForm(note, repo);
+                    probe.Show();
+                    Application.DoEvents();
+                    var n = FindDescendants<PictureBox>(probe).Count(p => p.Width <= 130 && p.Height <= 80);
+                    var want = carbon ? 1 : 3;
+                    Check($"预览页数正确（{(carbon ? "复写纸" : "分三联")}）", n == want, $"{n} 页，应为 {want}");
+                    probe.Close();
+                }
+            }
+            finally { Printing.NotePrinter.WriteCarbonCopy(repo, restorePly); }
+
             // 让窗口在 X 上真实绘制，供外部截图
             pv.TopMost = true;
             for (var i = 0; i < 40; i++) { Application.DoEvents(); Thread.Sleep(50); }
@@ -323,6 +361,100 @@ internal static class UiFlowTest
             pv.Close();
         }
 
+        return failures;
+    }
+
+
+    /// <summary>审核中心界面级校验：待审单据必须真的列出来，审核后库存与列表同步变化。</summary>
+    private static int RunAuditUiChecks(Repository repo, string outDir, System.Text.StringBuilder log)
+    {
+        var failures = 0;
+        void Check(string name, bool ok, string detail = "")
+        {
+            log.AppendLine($"{(ok ? "PASS" : "FAIL")}  {name}{(detail.Length > 0 ? "  → " + detail : "")}");
+            if (!ok) failures++;
+        }
+
+        var host = new MainForm(repo, TestLogin.AsAdmin(repo));
+        host.Show();
+        Application.DoEvents();
+
+        // 审核中心：待审单据必须真的出现在表格里，而不是空表
+        {
+            var pending = repo.QueryNotesByApproval(Core.ApproveStatus.待审核);
+            Check("存在待审核送货单供审核页显示", pending.Count > 0, $"{pending.Count} 张");
+
+            var auditHost = new Form { Size = new Size(1200, 760) };
+            var auditPage = new UI.Pages.AuditPage(repo, host);
+            auditHost.Controls.Add(auditPage);
+            auditHost.Show();
+            Application.DoEvents();
+            Application.DoEvents();
+
+            var grids = FindDescendants<DataGridView>(auditPage).ToList();
+            Check("审核页有三个表格", grids.Count >= 3, $"{grids.Count} 个");
+
+            // 状态筛选：切到"全部"必须能看到已审核的历史单据，否则升级用户会以为审核页是空的
+            var filters = FindDescendants<ComboBox>(auditPage).ToList();
+            Check("审核页有状态筛选下拉", filters.Count >= 2, $"{filters.Count} 个");
+            if (filters.Count > 0)
+            {
+                var f = filters[0];
+                Check("审核筛选默认待审核", f.SelectedIndex == 0, f.Text);
+
+                f.SelectedIndex = 3;
+                Application.DoEvents();
+                var allGrid = FindDescendants<DataGridView>(auditPage).First();
+                var totalInDb = repo.QueryNotes().Count;
+                Check("筛选切到全部能看到所有单据",
+                    allGrid.Rows.Count == totalInDb,
+                    $"{allGrid.Rows.Count} 行 / 库中 {totalInDb} 张");
+
+                f.SelectedIndex = 0;
+                Application.DoEvents();
+            }
+
+            var noteGrid = grids.FirstOrDefault();
+            Check("审核页送货单表格有数据行",
+                noteGrid is not null && noteGrid.Rows.Count == pending.Count,
+                $"{noteGrid?.Rows.Count} 行 / 期望 {pending.Count} 行");
+
+            if (noteGrid is not null && noteGrid.Rows.Count > 0)
+            {
+                var firstNo = noteGrid.Rows[0].Cells["NoteNo"].Value?.ToString() ?? "";
+                Check("审核页显示的单号与库中一致",
+                    pending.Any(n => n.NoteNo == firstNo), firstNo);
+            }
+
+            // 审核通过后，待审列表应减少、库存应变化
+            if (pending.Count > 0)
+            {
+                var before = pending.Count;
+                var stockBefore = repo.GetStock().Sum(s => s.Qty);
+                var r = repo.ApproveNote(pending[0].Id, "管理员");
+                Check("审核通过成功", r.Ok, r.Message);
+                Check("审核后待审数量减少",
+                    repo.QueryNotesByApproval(Core.ApproveStatus.待审核).Count == before - 1,
+                    $"{repo.QueryNotesByApproval(Core.ApproveStatus.待审核).Count} / 期望 {before - 1}");
+                Check("审核后库存已扣减", repo.GetStock().Sum(s => s.Qty) != stockBefore,
+                    $"{stockBefore} → {repo.GetStock().Sum(s => s.Qty)}");
+
+                // 切页回来必须看到最新数据，而不是缓存的旧表格
+                auditPage.Reload();
+                Application.DoEvents();
+                Check("刷新后审核表格同步更新",
+                    noteGrid!.Rows.Count == before - 1,
+                    $"{noteGrid.Rows.Count} 行 / 期望 {before - 1} 行");
+
+                var back = repo.UnapproveNote(pending[0].Id, "管理员");
+                Check("反审核可回滚", back.Ok, back.Message);
+            }
+
+            auditHost.Close();
+        }
+
+
+        host.Close();
         return failures;
     }
 

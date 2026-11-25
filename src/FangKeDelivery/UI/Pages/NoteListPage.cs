@@ -13,6 +13,7 @@ public sealed class NoteListPage : UserControl, IRefreshable
     private readonly DateTimePicker _from = new();
     private readonly DateTimePicker _to = new();
     private readonly ComboBox _status = new();
+    private readonly ComboBox _approval = new();
     private readonly DataGridView _grid = new();
     private readonly Label _summary = new();
 
@@ -65,26 +66,32 @@ public sealed class NoteListPage : UserControl, IRefreshable
             BackColor = Color.White
         };
 
-        _keyword.Width = 190;
+        _keyword.Width = 170;
         _keyword.PlaceholderText = "单号 / 客户 / 电话 / 备注";
 
         _from.Format = DateTimePickerFormat.Custom;
         _from.CustomFormat = "yyyy-MM-dd";
-        _from.Width = 116;
+        _from.Width = 108;
         _from.Font = Theme.BodyFont;
         _from.Value = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
 
         _to.Format = DateTimePickerFormat.Custom;
         _to.CustomFormat = "yyyy-MM-dd";
-        _to.Width = 116;
+        _to.Width = 108;
         _to.Font = Theme.BodyFont;
         _to.Value = DateTime.Today;
 
         _status.DropDownStyle = ComboBoxStyle.DropDownList;
-        _status.Width = 96;
+        _status.Width = 88;
         _status.Font = Theme.BodyFont;
         _status.Items.AddRange(new object[] { "全部状态", "未送货", "已送货", "已结算" });
         _status.SelectedIndex = 0;
+
+        _approval.DropDownStyle = ComboBoxStyle.DropDownList;
+        _approval.Width = 88;
+        _approval.Font = Theme.BodyFont;
+        _approval.Items.AddRange(new object[] { "全部审核", "待审核", "已审核", "已驳回" });
+        _approval.SelectedIndex = 0;
 
         var search = Theme.PrimaryButton("查询", 76, 30);
         search.Click += (_, _) => Reload();
@@ -95,6 +102,7 @@ public sealed class NoteListPage : UserControl, IRefreshable
             _from.Value = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
             _to.Value = DateTime.Today;
             _status.SelectedIndex = 0;
+            _approval.SelectedIndex = 0;
             Reload();
         };
 
@@ -127,6 +135,7 @@ public sealed class NoteListPage : UserControl, IRefreshable
         _to.Margin = new Padding(0, 3, 10, 0);
         flow.Controls.Add(_to);
         Wrap("状态", _status);
+        Wrap("审核", _approval);
         search.Margin = new Padding(6, 3, 8, 0);
         reset.Margin = new Padding(0, 3, 0, 0);
         flow.Controls.Add(search);
@@ -224,6 +233,7 @@ public sealed class NoteListPage : UserControl, IRefreshable
         _grid.Columns.Add(Col("TotalQtyText", "数量", 60, "right"));
         _grid.Columns.Add(Col("TotalAmount", "金额", 90, "right"));
         _grid.Columns.Add(Col("StatusText", "状态", 70, "center"));
+        _grid.Columns.Add(Col("ApproveText", "审核", 72, "center"));
         _grid.Columns.Add(Col("Salesman", "送货员", 80));
         _grid.Columns.Add(Col("Remark", "备注", 140));
 
@@ -262,6 +272,16 @@ public sealed class NoteListPage : UserControl, IRefreshable
 
         _notes = _repo.QueryNotes(_keyword.Text, _from.Value.Date, _to.Value.Date, status);
 
+        var approval = _approval.SelectedIndex switch
+        {
+            1 => (ApproveStatus?)ApproveStatus.待审核,
+            2 => ApproveStatus.已审核,
+            3 => ApproveStatus.已驳回,
+            _ => null
+        };
+        if (approval.HasValue)
+            _notes = _notes.Where(n => n.ApproveStatus == approval.Value).ToList();
+
         var rows = _notes.Select(n => new
         {
             n.Id,
@@ -272,6 +292,7 @@ public sealed class NoteListPage : UserControl, IRefreshable
             TotalQtyText = n.TotalQty.ToString("0.###"),
             n.TotalAmount,
             StatusText = n.Status.ToString(),
+            ApproveText = n.ApproveStatus.ToString(),
             n.Salesman,
             n.Remark
         }).ToList();
@@ -283,7 +304,9 @@ public sealed class NoteListPage : UserControl, IRefreshable
         }
 
         var total = _notes.Sum(n => n.TotalAmount);
-        _summary.Text = $"共 {_notes.Count} 张单据 · 合计金额 {total:N2} 元";
+        var pending = _notes.Count(n => n.ApproveStatus == ApproveStatus.待审核);
+        _summary.Text = $"共 {_notes.Count} 张单据 · 合计金额 {total:N2} 元" +
+                        (pending > 0 ? $" · {pending} 张待审核" : "");
     }
 
     private List<long> SelectedIds()
@@ -303,6 +326,15 @@ public sealed class NoteListPage : UserControl, IRefreshable
     {
         var ids = SelectedIds();
         if (ids.Count == 0) return;
+
+        var note = _notes.FirstOrDefault(n => n.Id == ids[0]);
+        if (note is { ApproveStatus: ApproveStatus.已审核 })
+        {
+            Msg.Show(FindForm(),
+                "该单据已审核，只能查看不能修改。\n\n如需修改，请先到「审核中心」反审核。",
+                "已审核", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
         _main.OpenNoteForEdit(ids[0]);
     }
 
