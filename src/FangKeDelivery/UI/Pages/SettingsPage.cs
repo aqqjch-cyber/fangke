@@ -1,5 +1,6 @@
 using FangKeDelivery.Core;
 using FangKeDelivery.Data;
+using FangKeDelivery.Printing;
 
 namespace FangKeDelivery.UI.Pages;
 
@@ -19,6 +20,21 @@ public sealed class SettingsPage : UserControl, IRefreshable
         AutoSize = true,
         Font = Theme.BodyFont,
         ForeColor = Theme.TextSub
+    };
+    private readonly CheckBox _carbonCopy = new()
+    {
+        Text = "复写纸三联：一份单子只打一遍纸（纸本身复写出三联）",
+        AutoSize = true,
+        Font = Theme.BodyFont,
+        ForeColor = Theme.TextSub
+    };
+    private readonly NumericUpDown _copies = new()
+    {
+        Minimum = 1,
+        Maximum = 9,
+        Width = 80,
+        Font = Theme.BodyFont,
+        TextAlign = HorizontalAlignment.Center
     };
     private readonly Label _dbPath = new();
     private readonly Label _dbSize = new();
@@ -63,7 +79,7 @@ public sealed class SettingsPage : UserControl, IRefreshable
     {
         var card = new Theme.RoundedPanel
         {
-            Height = 420,
+            Height = 530,
             Margin = new Padding(0, 0, 0, 12),
             Padding = new Padding(20, 16, 20, 16)
         };
@@ -80,14 +96,14 @@ public sealed class SettingsPage : UserControl, IRefreshable
         var t = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 312,
+            Height = 424,
             ColumnCount = 2,
-            RowCount = 8,
+            RowCount = 11,
             BackColor = Color.White
         };
         t.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96));
         t.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        for (var i = 0; i < 7; i++)
+        for (var i = 0; i < 10; i++)
             t.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
         t.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
 
@@ -115,6 +131,25 @@ public sealed class SettingsPage : UserControl, IRefreshable
         Row(5, "默认送货员", _salesman);
         Row(6, "单据页脚说明", _footer);
         Row(7, "打印版式", _prePrinted);
+        Row(8, "纸张类型", _carbonCopy);
+
+        var copiesBox = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Margin = new Padding(0, 5, 0, 5)
+        };
+        copiesBox.Controls.Add(_copies);
+        copiesBox.Controls.Add(new Label
+        {
+            Text = "份（每份含完整三联）",
+            AutoSize = true,
+            ForeColor = Theme.TextSub,
+            Font = Theme.SmallFont,
+            Margin = new Padding(8, 8, 0, 0)
+        });
+        Row(9, "默认打印份数", copiesBox);
 
         var save = Theme.PrimaryButton("保存设置", 100, 34);
         save.Click += (_, _) => SaveSettings();
@@ -246,6 +281,8 @@ public sealed class SettingsPage : UserControl, IRefreshable
         _footer.Text = _repo.GetSetting("PrintFooter", "客户签收后请妥善保管，作为结算凭证。");
         _fax.Text = _repo.GetSetting("CompanyFax", "");
         _prePrinted.Checked = _repo.GetSetting("PrintAlignPrePrinted", "1") != "0";
+        _carbonCopy.Checked = NotePrinter.ReadCarbonCopy(_repo);
+        _copies.Value = NotePrinter.ReadCopies(_repo);
 
         _dbPath.Text = AppPaths.DatabasePath;
         try
@@ -278,6 +315,8 @@ public sealed class SettingsPage : UserControl, IRefreshable
         _repo.SetSetting("PrintFooter", _footer.Text.Trim());
         _repo.SetSetting("CompanyFax", _fax.Text.Trim());
         _repo.SetSetting("PrintAlignPrePrinted", _prePrinted.Checked ? "1" : "0");
+        NotePrinter.WriteCarbonCopy(_repo, _carbonCopy.Checked);
+        NotePrinter.WriteCopies(_repo, (int)_copies.Value);
 
         Msg.Show(FindForm(), "设置已保存，打印时会使用新的公司信息。", "保存成功",
             MessageBoxButtons.OK, MessageBoxIcon.Information);

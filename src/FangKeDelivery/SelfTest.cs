@@ -148,14 +148,14 @@ internal static class SelfTest
 
         var note = repo.GetNote(noteId)!;
 
-        // 少量商品：三联应恰好 3 页
-        using (var doc = new NotePrintDocument(note, repo))
+        // 分三联模式（普通纸）：走三遍纸，恰好 3 页
+        using (var doc = new NotePrintDocument(note, repo) { CarbonCopy = false })
         {
             doc.PrintTimeOverride = new DateTime(2026, 1, 1, 9, 0, 0);
             var pages = doc.RenderAllPages(1f);
             try
             {
-                Check("三联共 3 页", pages.Count == 3, $"{pages.Count} 页");
+                Check("分三联模式共 3 页", pages.Count == 3, $"{pages.Count} 页");
                 Check("每页尺寸一致",
                     pages.Select(p => $"{p.Width}x{p.Height}").Distinct().Count() == 1,
                     pages.Count > 0 ? $"{pages[0].Width}x{pages[0].Height}" : "无页面");
@@ -193,6 +193,73 @@ internal static class SelfTest
                 foreach (var p in pages) p.Dispose();
             }
         }
+
+        // 复写纸模式：一份单子只打一遍纸，必须恰好 1 页
+        using (var doc = new NotePrintDocument(note, repo) { CarbonCopy = true })
+        {
+            var pages = doc.RenderAllPages(1f);
+            try
+            {
+                Check("复写纸模式只出 1 页", pages.Count == 1, $"{pages.Count} 页");
+            }
+            finally { foreach (var p in pages) p.Dispose(); }
+        }
+
+        // 份数设置：读写要能往返，越界要收敛到 1..9
+        var savedCopies = NotePrinter.ReadCopies(repo);
+        NotePrinter.WriteCopies(repo, 3);
+        Check("打印份数可保存", NotePrinter.ReadCopies(repo) == 3, $"{NotePrinter.ReadCopies(repo)}");
+        NotePrinter.WriteCopies(repo, 99);
+        Check("份数上限收敛到 9", NotePrinter.ReadCopies(repo) == 9, $"{NotePrinter.ReadCopies(repo)}");
+        NotePrinter.WriteCopies(repo, 0);
+        Check("份数下限收敛到 1", NotePrinter.ReadCopies(repo) == 1, $"{NotePrinter.ReadCopies(repo)}");
+        NotePrinter.WriteCopies(repo, savedCopies);
+
+        // 升级路径：老版本的库里没有 PrintCarbonCopy 键，必须默认复写纸（一遍纸）。
+        // 这条最容易漏——默认值一旦写反，用户升级后照样打三遍。
+        {
+            var tmpDir = Path.Combine(Path.GetTempPath(), "fk-upgrade-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var oldDb = new Db(Path.Combine(tmpDir, "upgrade.db"));
+                using (var conn = oldDb.Open())
+                {
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS Settings (Key TEXT PRIMARY KEY, Value TEXT)";
+                    cmd.ExecuteNonQuery();
+                }
+                var oldRepo = new Repository(oldDb);
+                oldRepo.SetSetting("CompanyName", "老版本公司");
+                oldRepo.SetSetting("PrintAlignPrePrinted", "1");
+                Check("老库缺 PrintCarbonCopy 键", oldRepo.GetSetting("PrintCarbonCopy", "") == "");
+                Check("老库升级后默认复写纸", NotePrinter.ReadCarbonCopy(oldRepo));
+
+                using var doc = new NotePrintDocument(note, oldRepo);
+                var pages = doc.RenderAllPages(1f);
+                try
+                {
+                    Check("老库升级后只走一遍纸", pages.Count == 1, $"{pages.Count} 页");
+                }
+                finally { foreach (var p in pages) p.Dispose(); }
+            }
+            finally
+            {
+                try { if (Directory.Exists(tmpDir)) Directory.Delete(tmpDir, true); } catch { }
+            }
+        }
+
+        var savedPly = NotePrinter.ReadCarbonCopy(repo);
+        NotePrinter.WriteCarbonCopy(repo, false);
+        Check("纸张类型可保存为分三联", !NotePrinter.ReadCarbonCopy(repo));
+        NotePrinter.WriteCarbonCopy(repo, true);
+        Check("纸张类型可保存为复写纸", NotePrinter.ReadCarbonCopy(repo));
+        NotePrinter.WriteCarbonCopy(repo, savedPly);
+
+        // 默认必须是复写纸：老用户升级后不设任何选项也应只走一遍纸
+        var freshRepo = repo;
+        var beforeKey = freshRepo.GetSetting("PrintCarbonCopy", "");
+        if (beforeKey.Length == 0)
+            Check("未设置时默认复写纸", NotePrinter.ReadCarbonCopy(freshRepo));
 
         // 打印版式开关：预印单模式右侧留白，铺满模式占满可打印区
         using (var doc = new NotePrintDocument(repo.GetNote(noteId)!, repo))
@@ -238,13 +305,27 @@ internal static class SelfTest
             });
         }
 
-        using (var doc = new NotePrintDocument(many, repo))
+        using (var doc = new NotePrintDocument(many, repo) { CarbonCopy = false })
         {
             var pages = doc.RenderAllPages(1f);
             try
             {
                 Check("40 行商品会跨页", pages.Count > 3, $"{pages.Count} 页");
                 Check("跨页后每联页数相同", pages.Count % 3 == 0, $"{pages.Count} 页");
+            }
+            finally
+            {
+                foreach (var p in pages) p.Dispose();
+            }
+        }
+
+        // 复写纸模式跨页：只在一种联次内续页，不该再乘 3
+        using (var doc = new NotePrintDocument(many, repo) { CarbonCopy = true })
+        {
+            var pages = doc.RenderAllPages(1f);
+            try
+            {
+                Check("复写纸模式跨页不乘 3", pages.Count < 9, $"{pages.Count} 页");
             }
             finally
             {

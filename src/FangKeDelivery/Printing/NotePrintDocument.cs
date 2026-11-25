@@ -35,8 +35,17 @@ public sealed class NotePrintDocument : PrintDocument
         OriginAtMargins = true;
     }
 
-    /// <summary>是否预览。预览时也渲染三联，便于一次看完。</summary>
+    /// <summary>是否预览。预览时也按当前联次模式渲染，所见即所印。</summary>
     public bool PreviewOnly { get; set; }
+
+    /// <summary>
+    /// 是否用复写纸。复写纸靠压感一次复写出三联，软件只能输出一页；
+    /// 输出三页会让一份单子走三遍纸，即用户反馈的「打一次出三张」。
+    /// </summary>
+    public bool CarbonCopy { get; set; } = true;
+
+    /// <summary>本次要走几遍纸：复写纸 1 遍，普通纸分三联 3 遍。</summary>
+    public int PageCopyCount => CarbonCopy ? 1 : Copies.Length;
 
     /// <summary>
     /// 按预印单（241-1）实际位置排版：内容只占纸面左侧约 79.5%，
@@ -96,7 +105,7 @@ public sealed class NotePrintDocument : PrintDocument
         // 本联画完，进入下一联
         _copyIndex++;
         _itemCursor = 0;
-        e.HasMorePages = _copyIndex < Copies.Length;
+        e.HasMorePages = _copyIndex < PageCopyCount;
     }
 
     private bool DrawCopy(Graphics g, RectangleF area, DeliveryNote note,
@@ -141,7 +150,8 @@ public sealed class NotePrintDocument : PrintDocument
         var far = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
 
         // ── 抬头 ──────────────────────────────────────────────
-        if (copyIndex >= 0 && copyIndex < Copies.Length)
+        // 复写纸一份单子覆盖三联，标单一联次会与纸上的实际联次矛盾，故不标
+        if (!CarbonCopy && copyIndex >= 0 && copyIndex < Copies.Length)
         {
             g.DrawString(Copies[copyIndex], boldFont, black,
                 new RectangleF(left, area.Top, width, 14), far);
@@ -326,7 +336,7 @@ public sealed class NotePrintDocument : PrintDocument
             ps.PaperSize.Width - m.Left - m.Right,
             ps.PaperSize.Height - m.Top - m.Bottom);
 
-        for (var copy = 0; copy < Copies.Length; copy++)
+        for (var copy = 0; copy < PageCopyCount; copy++)
         {
             var cursor = 0;
             do

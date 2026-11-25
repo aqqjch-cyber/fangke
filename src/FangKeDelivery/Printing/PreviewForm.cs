@@ -34,7 +34,7 @@ public sealed class PreviewForm : Form
         Font = Theme.BodyFont;
         KeyPreview = true;
 
-        using (var doc = new NotePrintDocument(note, repo))
+        using (var doc = new NotePrintDocument(note, repo) { CarbonCopy = NotePrinter.ReadCarbonCopy(repo) })
             _pages = doc.RenderAllPages(2f);
 
         var toolbar = BuildToolbar();
@@ -273,13 +273,24 @@ public sealed class PreviewForm : Form
 
     private void DoPrint()
     {
-        using var doc = new NotePrintDocument(_note, _repo);
-        using var dlg = new PrintDialog { Document = doc, UseEXDialog = true, AllowSomePages = false };
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        var carbonCopy = NotePrinter.ReadCarbonCopy(_repo);
+        using (var doc = new NotePrintDocument(_note, _repo) { CarbonCopy = carbonCopy })
+        using (var dlg = new PrintDialog { Document = doc, UseEXDialog = true, AllowSomePages = false })
+        {
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        }
+
+        using var copiesDlg = new PrintCopiesDialog(NotePrinter.ReadCopies(_repo), carbonCopy);
+        if (copiesDlg.ShowDialog(this) != DialogResult.OK) return;
+
+        NotePrinter.WriteCopies(_repo, copiesDlg.Copies);
+        NotePrinter.WriteCarbonCopy(_repo, copiesDlg.CarbonCopy);
+
         try
         {
-            doc.Print();
-            Msg.Show(this, "已提交打印。", "打印", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            NotePrinter.PrintCopies(_note, _repo, copiesDlg.Copies, this);
+            Msg.Show(this, $"已提交打印，共 {copiesDlg.Copies} 份。", "打印",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {

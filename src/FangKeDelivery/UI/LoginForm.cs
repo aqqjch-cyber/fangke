@@ -79,7 +79,7 @@ public sealed class LoginForm : Form
 
         var ver = new Label
         {
-            Text = "v1.3.1",
+            Text = Theme.VersionText,
             Font = Theme.SmallFont,
             ForeColor = Color.FromArgb(150, 185, 225),
             AutoSize = true,

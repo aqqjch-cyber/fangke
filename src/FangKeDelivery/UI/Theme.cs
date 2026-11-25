@@ -5,6 +5,10 @@ namespace FangKeDelivery.UI;
 /// <summary>统一的配色、字体与控件工厂，保证界面风格一致。</summary>
 public static class Theme
 {
+    /// <summary>显示用版本号，取自程序集，避免各处硬编码写漏。</summary>
+    public static string VersionText =>
+        "v" + (System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0");
+
     public static readonly Color Primary = Color.FromArgb(21, 101, 192);
     public static readonly Color PrimaryDark = Color.FromArgb(13, 71, 161);
     public static readonly Color PrimaryLight = Color.FromArgb(232, 240, 254);

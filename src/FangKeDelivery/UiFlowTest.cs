@@ -295,7 +295,12 @@ internal static class UiFlowTest
 
             var pics = FindDescendants<PictureBox>(pv).ToList();
             Check("预览窗口已打开", pv.Visible, pv.Text);
-            Check("预览有三联缩略图", pics.Count >= 3, $"{pics.Count} 个缩略图");
+            // 缩略图数量跟随联次模式：复写纸 1 页、普通纸分三联 3 页。
+            // 主图也是 PictureBox，按缩略图的固定尺寸把它排除掉。
+            var thumbs = pics.Count(p => p.Width <= 130 && p.Height <= 80);
+            var expectPages = Printing.NotePrinter.ReadCarbonCopy(repo) ? 1 : 3;
+            Check("预览缩略图数符合联次模式", thumbs == expectPages,
+                $"{thumbs} 个缩略图，应为 {expectPages}");
             Check("预览主图已加载", pics.Any(p => p.Image is not null));
 
             var buttons = FindDescendants<Button>(pv).Select(b => b.Text).ToList();
@@ -311,6 +316,38 @@ internal static class UiFlowTest
                 $"{mainPic.Width}x{mainPic.Height}");
             Check("预览主图在可视区内", mainPic.Width <= pv.ClientSize.Width,
                 $"{mainPic.Width} <= {pv.ClientSize.Width}");
+
+            // 打印设置弹窗：默认复写纸 1 份，且合计页数随份数联动
+            using (var dlg = new Printing.PrintCopiesDialog(1, true))
+            {
+                Check("打印弹窗默认复写纸", dlg.CarbonCopy);
+                Check("打印弹窗默认 1 份", dlg.Copies == 1, dlg.Copies.ToString());
+                var hint = FindDescendants<Label>(dlg).First(l => l.Text.Contains("合计"));
+                Check("打印弹窗提示 1 份合计 1 页", hint.Text.Contains("合计 1 页"), hint.Text);
+
+                var spin = FindDescendants<NumericUpDown>(dlg).First();
+                spin.Value = 3;
+                Application.DoEvents();
+                Check("改份数后提示同步更新", hint.Text.Contains("合计 3 页"), hint.Text);
+            }
+
+            // 两种联次模式都要能预览，且页数跟随模式变化
+            var restorePly = Printing.NotePrinter.ReadCarbonCopy(repo);
+            try
+            {
+                foreach (var carbon in new[] { true, false })
+                {
+                    Printing.NotePrinter.WriteCarbonCopy(repo, carbon);
+                    using var probe = new Printing.PreviewForm(note, repo);
+                    probe.Show();
+                    Application.DoEvents();
+                    var n = FindDescendants<PictureBox>(probe).Count(p => p.Width <= 130 && p.Height <= 80);
+                    var want = carbon ? 1 : 3;
+                    Check($"预览页数正确（{(carbon ? "复写纸" : "分三联")}）", n == want, $"{n} 页，应为 {want}");
+                    probe.Close();
+                }
+            }
+            finally { Printing.NotePrinter.WriteCarbonCopy(repo, restorePly); }
 
             // 让窗口在 X 上真实绘制，供外部截图
             pv.TopMost = true;
