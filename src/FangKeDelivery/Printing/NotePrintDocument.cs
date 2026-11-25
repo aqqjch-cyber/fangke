@@ -14,6 +14,12 @@ public sealed class NotePrintDocument : PrintDocument
     private readonly string _companyFax;
     private readonly string _footer;
 
+    // 打印字号。放大字号前请跑自检的「表头不超格宽」用例：它用同一套字体实测宽度。
+    public const float TitlePt = 18.5f;
+    public const float CompanyPt = 12.5f;
+    public const float BodyPt = 9.5f;
+    public const float SmallPt = 8.5f;
+
     /// <summary>参考单的联次抬头：白联存根 / 红联客户联 / 黄联结算联。</summary>
     private static readonly string[] Copies = { "白联：存根", "红联：客户联", "黄联：结算联" };
 
@@ -127,11 +133,13 @@ public sealed class NotePrintDocument : PrintDocument
     {
         nextCursor = startItem;
 
-        using var titleFont = new Font(Theme2.FontFamily, 17f, FontStyle.Bold);
-        using var companyFont = new Font(Theme2.FontFamily, 11.5f, FontStyle.Bold);
-        using var headFont = new Font(Theme2.FontFamily, 8.5f, FontStyle.Regular);
-        using var boldFont = new Font(Theme2.FontFamily, 8.5f, FontStyle.Bold);
-        using var smallFont = new Font(Theme2.FontFamily, 7.5f, FontStyle.Regular);
+        // 只放大字，行高与表格位置保持原值：预印单模式下格子是纸上印好的，
+        // 一改行高就会和预印框错位。24.5 单位行高约合 17.6pt，容得下 9.5pt。
+        using var titleFont = new Font(Theme2.FontFamily, TitlePt, FontStyle.Bold);
+        using var companyFont = new Font(Theme2.FontFamily, CompanyPt, FontStyle.Bold);
+        using var headFont = new Font(Theme2.FontFamily, BodyPt, FontStyle.Regular);
+        using var boldFont = new Font(Theme2.FontFamily, BodyPt, FontStyle.Bold);
+        using var smallFont = new Font(Theme2.FontFamily, SmallPt, FontStyle.Regular);
         using var black = new SolidBrush(Color.Black);
         using var pen = new Pen(Color.Black, 1f);
 

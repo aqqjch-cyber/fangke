@@ -215,6 +215,36 @@ internal static class SelfTest
         Check("份数下限收敛到 1", NotePrinter.ReadCopies(repo) == 1, $"{NotePrinter.ReadCopies(repo)}");
         NotePrinter.WriteCopies(repo, savedCopies);
 
+        // 字号放大后必须逐列实测：超宽的文字会被 GDI+ 直接裁掉，肉眼只看得到半截字。
+        // 用绘制时的同一套字体量，量不出问题才算真的没串格。
+        using (var probe = new NotePrintDocument(note, repo))
+        using (var g = Graphics.FromHwnd(IntPtr.Zero))
+        using (var hf = new Font(UI.Theme.FontFamily, NotePrintDocument.BodyPt, FontStyle.Bold))
+        {
+            g.PageUnit = GraphicsUnit.Inch;
+            g.PageScale = 0.01f;
+            var paperW = probe.PaperWidth;
+            var contentW = paperW * 0.795f;
+            var headers = new[] { "序号", "商品名称", "规格型号", "单位", "数量", "单价", "金额", "备注说明" };
+            var cols = new[] { 0.064f, 0.248f, 0.169f, 0.061f, 0.073f, 0.093f, 0.131f, 0.160f };
+            var widest = 0f;
+            var worst = "";
+            for (var i = 0; i < headers.Length; i++)
+            {
+                var cellW = contentW * cols[i] - 4;
+                var textW = g.MeasureString(headers[i], hf).Width;
+                var ratio = textW / cellW;
+                if (ratio > widest) { widest = ratio; worst = headers[i]; }
+            }
+            Check("表头不超格宽", widest <= 1.0f, $"最挤「{worst}」占格宽 {widest:P0}");
+
+            // 明细行也要量：金额列是最长的数字，最容易顶出去
+            var cellAmount = contentW * cols[6] - 4;
+            var amountW = g.MeasureString("99999.00", hf).Width;
+            Check("金额列容得下 5 位整数", amountW <= cellAmount,
+                $"{amountW:F0} / {cellAmount:F0} 单位");
+        }
+
         // 升级路径：老版本的库里没有 PrintCarbonCopy 键，必须默认复写纸（一遍纸）。
         // 这条最容易漏——默认值一旦写反，用户升级后照样打三遍。
         {
